@@ -3,254 +3,149 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Visor de Pases con Capas • Fade</title>
-  <meta name="description" content="Superponé pases del mismo frame con opacidades por capa para comparar más rápido que en un editor. Listo para GitHub Pages.">
+  <title>Visor de Pases con Capas • Frames</title>
   <style>
-    :root{
-      --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
-      --line:#1f2937; --accent:#60a5fa; --ok:#34d399; --warn:#f59e0b; --bad:#ef4444;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+    :root{ --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1; --line:#1f2937; --accent:#60a5fa; }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
-    header{display:flex; align-items:center; gap:.5rem; padding:.5rem .75rem; background:linear-gradient(180deg,#0f1317, #0b0d10); border-bottom:1px solid var(--line)}
-    header h1{font-size:14px; margin:0; letter-spacing:.2px; opacity:.95}
-    .sp{flex:1}
-    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text); padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
-    .btn:hover{border-color:#2b3646}
-    .btn[aria-pressed="true"]{outline:2px solid var(--accent); outline-offset:1px}
-    .muted{color:var(--muted)}
-
-    .main{display:grid; grid-template-columns:320px 1fr; height:calc(100vh - 50px)}
+    header{display:flex; align-items:center; gap:.5rem; padding:.5rem .75rem; background:linear-gradient(180deg,#0f1317,#0b0d10); border-bottom:1px solid var(--line)}
+    header h1{font-size:14px;margin:0;letter-spacing:.2px;opacity:.95} .sp{flex:1}
+    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text); padding:.35rem .6rem; border-radius:.45rem; font-size:12px; cursor:pointer}
+    select.btn{padding:.25rem .4rem}
+    .main{display:grid; grid-template-columns:300px 1fr; height:calc(100vh - 50px)}
     .left{border-right:1px solid var(--line); background:var(--panel); overflow:auto}
-    .right{position:relative;}
-
-    .drop{margin:.75rem; padding:1rem; border:1px dashed #2a3340; border-radius:.75rem; text-align:center; background:#0b0f14}
-    .drop.drag{border-color:var(--accent)}
-    .drop p{margin:.25rem 0}
-    .small{font-size:12px; color:var(--muted)}
-
     .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem}
-    .layer{display:grid; grid-template-columns:26px 1fr 44px; align-items:center; gap:.5rem; padding:.5rem; border-radius:.6rem; border:1px solid transparent; background:#0e1218}
-    .layer.active{border-color:#203040; background:#0f151e}
-    .eye{width:26px; height:26px; border:1px solid #2a3340; border-radius:.45rem; background:#0d1117; display:grid; place-items:center; cursor:pointer}
-    .eye[data-on="0"]{opacity:.5}
-    .meta{display:flex; flex-direction:column; gap:.35rem}
-    .title{font-size:12px; display:flex; align-items:center; gap:.5rem}
-    .chip{font-size:11px; color:#cbd5e1; background:#0a0f15; padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem}
-    .ops{display:flex; gap:.35rem}
-    .ops button{width:20px; height:26px}
-
-    .range{display:flex; align-items:center; gap:.5rem}
+    .layer{display:grid; grid-template-columns:20px 1fr; gap:.5rem; align-items:center; background:#0f1317; padding:.35rem; border-radius:.4rem; transition:opacity .15s ease}
+    .layer.off{opacity:.45} 
+    .layer label{font-size:12px; cursor:pointer}
+    .layer input[type=checkbox]{accent-color:var(--accent);}
+    .range{display:flex; align-items:center; gap:.25rem}
     .range input[type=range]{flex:1}
-    .range .val{width:36px; text-align:right; font-size:12px; color:#c7cbd1}
-
-    .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
-    .toolbar .btn{backdrop-filter: blur(6px); background:rgba(18,22,28,.75)}
-
+    .range .val{font-size:11px;width:30px;text-align:right;color:var(--muted)}
+    /* indicadores de checkbox visibles */
+    .row{display:flex; gap:.35rem; align-items:center}
+    .row input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
-    .hint{position:absolute; bottom:.5rem; left:.5rem; font-size:12px; color:#c7cbd1; opacity:.85; background:rgba(9,11,15,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
-
-    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted); background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
-    .warn{color:#fcd34d}
-    code.k{background:#0f1720; border:1px solid #202b3a; padding:.05rem .3rem; border-radius:.35rem}
-
-    @media (max-width: 900px){
-      .main{grid-template-columns: 1fr}
-      .left{position:absolute; inset:auto 0 0 0; height:45%; border-right:none; border-top:1px solid var(--line)}
-      .right{height:55vh}
-    }
+    .hint{position:absolute; bottom:.5rem; left:.5rem; font-size:12px; color:#c7cbd1; background:rgba(0,0,0,.4); padding:.25rem .4rem; border-radius:.3rem}
   </style>
 </head>
 <body>
 <div class="app">
   <header>
-    <h1>Visor de Pases con Capas</h1>
+    <h1>Visor de Pases</h1>
     <div class="sp"></div>
+    <label class="btn">Frame<select id="frameSel" class="btn"></select></label>
     <button class="btn" id="btnFit">Ajustar</button>
     <button class="btn" id="btn100">100%</button>
     <button class="btn" id="btnBG">BG</button>
-    <button class="btn" id="btnSolo">Solo activo</button>
-    <button class="btn" id="btnAll">Mostrar todos</button>
-    <label class="btn" for="file">Subir imágenes</label>
+    <label class="btn" for="file">Subir</label>
     <input id="file" type="file" accept="image/*" multiple hidden>
   </header>
-
   <div class="main">
     <aside class="left">
-      <div id="drop" class="drop">
-        <p><strong>Soltá acá</strong> o usá el botón Subir imágenes.</p>
-        <p class="small">Nombrá como <code>0001_High.png</code>, <code>0001_BaseColor.jpg</code>, etc. El sufijo se usa como nombre de capa.</p>
-      </div>
       <div class="layers" id="layers"></div>
     </aside>
-
-    <section class="right">
-      <div class="toolbar">
-        <div class="btn muted" id="infoDim">–</div>
-        <div class="btn muted" id="infoZoom">–</div>
-        <div class="btn muted" id="infoWarn"></div>
-      </div>
+    <section class="right" style="position:relative">
       <canvas id="cv"></canvas>
-      <div class="hint">Drag&Drop también sobre el canvas. Rueda para zoom, arrastrá para pan.</div>
-      <div class="footer" id="footer">Sin imágenes</div>
+      <div class="hint">Drag&Drop también sobre el canvas. Sliders = opacidad sobre High.</div>
     </section>
   </div>
 </div>
-
 <script>
 (()=>{
-  const fileInput = document.getElementById('file');
-  const drop = document.getElementById('drop');
-  const layersEl = document.getElementById('layers');
-  const cv = document.getElementById('cv');
-  const ctx = cv.getContext('2d');
-  const btnFit = document.getElementById('btnFit');
-  const btn100 = document.getElementById('btn100');
-  const btnBG = document.getElementById('btnBG');
-  const btnSolo = document.getElementById('btnSolo');
-  const btnAll = document.getElementById('btnAll');
-  const infoDim = document.getElementById('infoDim');
-  const infoZoom = document.getElementById('infoZoom');
-  const infoWarn = document.getElementById('infoWarn');
-  const footer = document.getElementById('footer');
+  const fileInput=document.getElementById('file');
+  const frameSel=document.getElementById('frameSel');
+  const layersEl=document.getElementById('layers');
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  const btnFit=document.getElementById('btnFit');
+  const btn100=document.getElementById('btn100');
+  const btnBG=document.getElementById('btnBG');
+  let frames=new Map(); let current=null; let zoom=1,panX=0,panY=0; let baseW=0,baseH=0; let bg=0;
 
-  let layers = []; // {name, img, url, w, h, visible, opacity}
-  let active = 0;
-  let zoom = 1, panX = 0, panY = 0;
-  let bgToggle = 0;
-  let baseW = 0, baseH = 0;
-
-  function nameFromFile(f){
-    const base = f.name.replace(/\.[^.]+$/, '');
-    const m = base.match(/(.+?)[-_ ]([A-Za-z0-9]+)$/);
-    return m ? m[2] : base;
-  }
-
-  function setCanvasSize(){
-    cv.width = cv.clientWidth * devicePixelRatio;
-    cv.height = cv.clientHeight * devicePixelRatio;
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.scale(devicePixelRatio, devicePixelRatio);
-    draw();
-  }
-  window.addEventListener('resize', setCanvasSize);
-
-  function addLayer(obj){
-    if(layers.length===0){ baseW = obj.w; baseH = obj.h; obj.opacity=1; } else { obj.opacity=0; }
-    layers.push({...obj, visible:true});
-    renderLayersUI();
-    footer.textContent = `${layers.length} capa(s)`;
+  function isHigh(name){return name.toLowerCase()==='high';}
+  function parseName(fname){
+    const base=fname.replace(/\.[^.]+$/,'');
+    const m=base.match(/^(\d+)[-_ ]([A-Za-z0-9_]+)$/);
+    if(!m) return {frame:'0000', pass:base};
+    return {frame:m[1], pass:m[2]};
   }
 
   async function handleFiles(files){
-    const sorted = [...files].sort((a,b)=> a.name.localeCompare(b.name));
-    for(const f of sorted){
+    for(const f of files){
       if(!f.type.startsWith('image/')) continue;
-      const url = URL.createObjectURL(f);
-      const img = new Image();
-      await new Promise(res=>{ img.onload=res; img.src=url; });
-      addLayer({name:nameFromFile(f), img, url, w:img.naturalWidth, h:img.naturalHeight});
+      const url=URL.createObjectURL(f); const img=new Image();
+      await new Promise(r=>{img.onload=r; img.src=url;});
+      const {frame,pass}=parseName(f.name);
+      if(!frames.has(frame)) frames.set(frame,{base:null,layers:[]});
+      const fr=frames.get(frame);
+      const entry={name:pass,img,w:img.naturalWidth,h:img.naturalHeight,visible:true,opacity:isHigh(pass)?1:0};
+      if(isHigh(pass)) fr.base=entry; else fr.layers.push(entry);
     }
-    if(layers.length>0){
-      updateInfo();
-      checkDims();
-      draw();
-    }
+    updateFrameSel();
+    if(!current) setCurrent(frameSel.value);
   }
 
-  fileInput.addEventListener('change', e=> handleFiles(e.target.files));
-  ;['dragenter','dragover'].forEach(ev=> [drop,cv].forEach(el=> el.addEventListener(ev, e=>{e.preventDefault(); drop.classList.add('drag');})));
-  ;['dragleave','drop'].forEach(ev=> [drop,cv].forEach(el=> el.addEventListener(ev, e=>{e.preventDefault(); drop.classList.remove('drag');})));
-  drop.addEventListener('drop', e=> handleFiles(e.dataTransfer.files));
-  cv.addEventListener('drop', e=> handleFiles(e.dataTransfer.files));
-
-  function fitZoom(){
-    if(layers.length===0) return 1;
-    const vw = cv.clientWidth, vh = cv.clientHeight;
-    const zx = vw / baseW, zy = vh / baseH;
-    return Math.min(zx, zy);
-  }
-  function center(){
-    const vw = cv.clientWidth, vh = cv.clientHeight;
-    panX = (vw - baseW*zoom)/2; panY = (vh - baseH*zoom)/2;
+  function updateFrameSel(){
+    frameSel.innerHTML='';
+    const keys=[...frames.keys()].sort((a,b)=>a-b);
+    keys.forEach(k=>{let o=document.createElement('option');o.value=k;o.textContent=k;frameSel.appendChild(o);});
   }
 
-  function drawBG(){
-    if(bgToggle===0){ ctx.fillStyle = '#0a0c10'; ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight); return; }
-    const s = 16; const w = cv.clientWidth, h = cv.clientHeight;
-    for(let y=0;y<h;y+=s){ for(let x=0;x<w;x+=s){ ctx.fillStyle = ((x+y)/s)%2? '#0e1218':'#0b0f15'; ctx.fillRect(x,y,s,s);} }
-  }
-
-  function draw(){
-    ctx.setTransform(1,0,0,1,0,0);
-    drawBG();
-    if(layers.length===0) return;
-    ctx.imageSmoothingEnabled = false;
-    ctx.setTransform(1,0,0,1,panX,panY);
-    ctx.scale(zoom, zoom);
-
-    for(const L of layers){
-      if(!L.visible || L.opacity<=0) continue;
-      ctx.globalAlpha = L.opacity;
-      if(L.w!==baseW || L.h!==baseH){ ctx.drawImage(L.img, 0,0,L.w,L.h,0,0,baseW,baseH);} else { ctx.drawImage(L.img,0,0);} 
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  function updateInfo(){
-    if(layers.length===0){ infoDim.textContent='–'; infoZoom.textContent='–'; return; }
-    infoDim.textContent = `${baseW}×${baseH}`;
-    infoZoom.textContent = `${Math.round(zoom*100)}%`;
-  }
-
-  function checkDims(){
-    if(layers.length===0) return;
-    const anyMismatch = layers.some(L=> L.w!==baseW || L.h!==baseH);
-    infoWarn.textContent = anyMismatch ? 'Dimensiones distintas. Se escala al tamaño base.' : '';
-    infoWarn.className = anyMismatch ? 'btn warn' : 'btn muted';
-  }
+  function setCurrent(fid){ current=frames.get(fid); frameSel.value=fid; baseW=current.base?current.base.w:current.layers[0].w; baseH=current.base?current.base.h:current.layers[0].h; zoom=fitZoom(); center(); renderLayersUI(); draw(); }
 
   function renderLayersUI(){
-    layersEl.innerHTML = '';
-    layers.forEach((L, idx)=>{
-      const row = document.createElement('div'); row.className = 'layer';
-      const eye = document.createElement('button'); eye.className='eye'; eye.textContent = L.visible? '●':'○'; eye.addEventListener('click', ()=>{ L.visible=!L.visible; draw(); });
-      const meta = document.createElement('div'); meta.className='meta';
-      const title = document.createElement('div'); title.className='title';
-      const name = document.createElement('strong'); name.textContent=L.name; name.style.fontSize='12px';
-      const chip = document.createElement('span'); chip.className='chip'; chip.textContent=`${L.w}×${L.h}`;
-      title.appendChild(name); title.appendChild(chip);
-      const range = document.createElement('div'); range.className='range';
-      const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100; slider.value=Math.round((L.opacity??0)*100);
-      const val = document.createElement('div'); val.className='val'; val.textContent=`${slider.value}%`;
-      slider.addEventListener('input', ()=>{ L.opacity=slider.value/100; val.textContent=`${slider.value}%`; draw(); });
+    layersEl.innerHTML='';
+    if(!current) return;
+    // High se muestra fijo, sin slider
+    if(current.base){
+      const baseRow=document.createElement('div'); baseRow.className='layer';
+      const label=document.createElement('label'); label.textContent=`${current.base.name} (Base)`;
+      baseRow.appendChild(document.createElement('span'));
+      baseRow.appendChild(label);
+      layersEl.appendChild(baseRow);
+    }
+    current.layers.forEach(L=>{
+      const row=document.createElement('div'); row.className='layer' + (L.visible ? '' : ' off');
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=L.visible; cb.addEventListener('change',()=>{L.visible=cb.checked; row.classList.toggle('off', !L.visible); draw();});
+      const meta=document.createElement('div');
+      const label=document.createElement('div'); label.textContent=L.name; label.style.fontSize='12px';
+      const range=document.createElement('div'); range.className='range';
+      const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100; slider.value=Math.round((L.opacity??0)*100);
+      const val=document.createElement('div'); val.className='val'; val.textContent=`${slider.value}%`;
+      slider.addEventListener('input',()=>{L.opacity=slider.value/100; val.textContent=`${slider.value}%`; draw();});
       range.appendChild(slider); range.appendChild(val);
-      meta.appendChild(title); meta.appendChild(range);
-      row.appendChild(eye); row.appendChild(meta); layersEl.appendChild(row);
+      meta.appendChild(label); meta.appendChild(range);
+      row.appendChild(cb); row.appendChild(meta);
+      layersEl.appendChild(row);
     });
   }
 
-  // Interacción zoom y pan
-  let dragging=false,lastX=0,lastY=0;
-  cv.addEventListener('mousedown', e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
-  window.addEventListener('mouseup', ()=>dragging=false);
-  window.addEventListener('mousemove', e=>{if(!dragging) return; panX+=(e.clientX-lastX); panY+=(e.clientY-lastY); lastX=e.clientX; lastY=e.clientY; draw();});
+  function fitZoom(){return Math.min(cv.clientWidth/baseW,cv.clientHeight/baseH);} function center(){panX=(cv.clientWidth-baseW*zoom)/2; panY=(cv.clientHeight-baseH*zoom)/2;}
 
-  cv.addEventListener('wheel', e=>{
-    if(layers.length===0) return; e.preventDefault();
-    const mx=e.offsetX,my=e.offsetY; const prevZoom=zoom; const delta=Math.sign(e.deltaY)*-0.1;
-    zoom=Math.max(0.05,Math.min(32,zoom*(1+delta)));
-    const wx=(mx-panX)/prevZoom; const wy=(my-panY)/prevZoom;
-    panX=mx-wx*zoom; panY=my-wy*zoom; draw(); updateInfo();
-  },{passive:false});
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0); bg?drawBG():ctx.clearRect(0,0,cv.width,cv.height);
+    if(!current) return;
+    ctx.setTransform(1,0,0,1,panX,panY); ctx.scale(zoom,zoom);
+    if(current.base) ctx.drawImage(current.base.img,0,0);
+    current.layers.forEach(L=>{ if(!L.visible||L.opacity<=0) return; ctx.globalAlpha=L.opacity; ctx.drawImage(L.img,0,0); ctx.globalAlpha=1; });
+  }
 
-  btnFit.addEventListener('click', ()=>{ zoom=fitZoom(); center(); draw(); updateInfo(); });
-  btn100.addEventListener('click', ()=>{ zoom=1; center(); draw(); updateInfo(); });
-  btnBG.addEventListener('click', ()=>{ bgToggle=(bgToggle+1)%2; draw(); });
+  function drawBG(){const s=16;for(let y=0;y<cv.height;y+=s){for(let x=0;x<cv.width;x+=s){ctx.fillStyle=((x+y)/s)%2?'#0e1218':'#0b0f15';ctx.fillRect(x,y,s,s);}}}
 
-  const ro=new ResizeObserver(setCanvasSize); ro.observe(cv); setCanvasSize();
+  fileInput.addEventListener('change',e=>handleFiles(e.target.files));
+  ['dragenter','dragover'].forEach(ev=>cv.addEventListener(ev,e=>e.preventDefault()));
+  ['dragleave','drop'].forEach(ev=>cv.addEventListener(ev,e=>e.preventDefault()));
+  cv.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
+  frameSel.addEventListener('change',()=>setCurrent(frameSel.value));
+  btnFit.addEventListener('click',()=>{zoom=fitZoom();center();draw();});
+  btn100.addEventListener('click',()=>{zoom=1;center();draw();});
+  btnBG.addEventListener('click',()=>{bg=!bg;draw();});
+
+  let drag=false,lx=0,ly=0; cv.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;}); window.addEventListener('mouseup',()=>drag=false); window.addEventListener('mousemove',e=>{if(!drag)return;panX+=(e.clientX-lx);panY+=(e.clientY-ly);lx=e.clientX;ly=e.clientY;draw();});
+  cv.addEventListener('wheel',e=>{if(!current)return;e.preventDefault();const mx=e.offsetX,my=e.offsetY;const prev=zoom;const d=Math.sign(e.deltaY)*-0.1;zoom=Math.max(0.05,Math.min(32,zoom*(1+d)));const wx=(mx-panX)/prev,wy=(my-panY)/prev;panX=mx-wx*zoom;panY=my-wy*zoom;draw();},{passive:false});
+  new ResizeObserver(()=>{cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHeight*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);draw();}).observe(cv);
 })();
 </script>
 </body>
