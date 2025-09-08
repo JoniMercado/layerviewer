@@ -61,7 +61,8 @@
     /* Layer list */
     .layer{
       display:grid;
-      grid-template-columns:24px 1fr max-content var(--sliderw) max-content; /* checkbox | name | chip | slider | % */
+      /* checkbox | name (min 120px) | chip | slider | % */
+      grid-template-columns:24px minmax(120px,1fr) max-content var(--sliderw) max-content;
       align-items:center; gap:.5rem;
       padding:.55rem; border-radius:.6rem;
       border:1px solid transparent; background:#0e1218;
@@ -73,7 +74,10 @@
     .cbwrap{display:flex; align-items:center; justify-content:center}
     .cbwrap input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
 
-    .name{font-size:12px; color:var(--text); min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .name{
+      display:block; font-size:12px; color:var(--text);
+      min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis
+    }
     .chip{
       font-size:11px; color:#cbd5e1; background:#0a0f15;
       padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem; white-space:nowrap
@@ -219,9 +223,9 @@
   function parseName(name){
     // "XXXX_Suffix.ext"
     const base = name.replace(/\.[^.]+$/,'');
-    theMatch = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
-    if(!theMatch) return {frameId:'unknown', pass:canonicalPass(base)};
-    return {frameId:theMatch[1], pass:canonicalPass(theMatch[2])};
+    const m = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
+    if(!m) return {frameId:'unknown', pass:canonicalPass(base)};
+    return {frameId:m[1], pass:canonicalPass(m[2])};
   }
   const pad = (n, len) => String(n).padStart(len, '0');
 
@@ -310,6 +314,7 @@
     const baseRow = document.createElement('div'); baseRow.className='layer base';
     const cbEmpty = document.createElement('div'); cbEmpty.className='cbwrap'; // placeholder
     const baseName = document.createElement('div'); baseName.className='name'; baseName.textContent = fr.base ? `${fr.base.name} (Base)` : 'No High';
+    baseName.title = baseName.textContent;
     const baseChip = document.createElement('span'); baseChip.className='chip'; baseChip.textContent = fr.base ? `${fr.base.w}×${fr.base.h}` : '—';
     const spacer = document.createElement('div'); // slider placeholder
     const spacer2 = document.createElement('div'); // pct placeholder
@@ -329,7 +334,7 @@
       cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
       cbWrap.appendChild(cb);
 
-      const name = document.createElement('div'); name.className='name'; name.textContent = L.name;
+      const name = document.createElement('div'); name.className='name'; name.textContent = L.name; name.title = L.name;
 
       const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
 
