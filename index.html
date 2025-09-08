@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frame Viewer • High + Layers (checkbox + fade + timeline)</title>
+  <title>Frame Viewer • High + Layers (fade + timeline)</title>
   <meta name="description" content="Compare render passes per frame. 'High' as base (no slider), case-insensitive, drag & drop on panel and canvas. Frame input + timeline slider.">
   <style>
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
       --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
+      --sliderw: 260px; /* <-- uniform slider column width */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -27,7 +28,7 @@
     .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text); padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
     .btn:hover{border-color:#2b3646}
     .field{display:flex; align-items:center; gap:.4rem}
-    .input{border:1px solid var(--line); background:#0f1317; color:var(--text); border-radius:.5rem; padding:.4rem .55rem; font-size:12px; width:90px}
+    .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem; padding:.4rem .55rem; font-size:12px; width:90px}
     .range-header{display:flex; align-items:center; gap:.5rem}
     .range-header input[type=range]{width:280px}
 
@@ -39,7 +40,7 @@
     .layers{display:flex; flex-direction:column; gap:.5rem}
     .layer{
       display:grid;
-      grid-template-columns:22px auto max-content 1fr max-content;
+      grid-template-columns:22px auto max-content var(--sliderw) max-content; /* fixed slider column */
       align-items:center; gap:.5rem;
       padding:.55rem; border-radius:.6rem;
       border:1px solid transparent; background:#0e1218;
@@ -50,18 +51,29 @@
     .name{font-size:12px}
     .chip{font-size:11px; color:#cbd5e1; background:#0a0f15; padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem}
     .slider{display:flex; align-items:center; gap:.5rem}
-    .slider input[type=range]{width:100%}
+    .slider input[type=range]{width:100%} /* fills fixed column */
     .pct{width:40px; text-align:right; font-size:12px; color:#c7cbd1}
 
     .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
     .toolbar .btn{backdrop-filter:blur(6px); background:rgba(18,22,28,.75)}
 
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
-    .hint{position:absolute; bottom:.5rem; left:.5rem; font-size:12px; color:#c7cbd1; opacity:.85; background:rgba(9,11,15,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
     .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted); background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
     .warn{color:#fcd34d}
 
     .row input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
+
+    /* Naming rules box (bottom-left) */
+    .naming{
+      position:absolute; left:.5rem; bottom:.5rem; z-index:9;
+      max-width:420px;
+      background:rgba(9,12,16,.85);
+      border:1px solid #1a2230; border-radius:.6rem;
+      padding:.6rem .7rem; font-size:12px; line-height:1.4;
+      backdrop-filter: blur(6px);
+    }
+    .naming h4{margin:.1rem 0 .35rem 0; font-size:12px; color:#e5e7eb}
+    .naming code{background:#0f1720; border:1px solid #202b3a; padding:.05rem .3rem; border-radius:.35rem}
 
     @media (max-width: 1000px){
       header{grid-template-columns:auto 1fr auto; grid-auto-rows:auto}
@@ -71,6 +83,7 @@
       .main{grid-template-columns: 1fr}
       .left{position:absolute; inset:auto 0 0 0; height:48%; border-right:none; border-top:1px solid var(--line)}
       .right{height:52vh}
+      .naming{max-width:80vw}
     }
   </style>
 </head>
@@ -111,8 +124,21 @@
         <div class="btn muted" id="infoZoom">–</div>
         <div class="btn muted" id="infoWarn"></div>
       </div>
+
       <canvas id="cv"></canvas>
-      <div class="hint">Drag & drop on canvas or left panel. Mouse wheel to zoom, drag to pan. Keys: <b>F</b> fit, <b>0</b> 100%.</div>
+
+      <div class="naming">
+        <h4>Naming rules</h4>
+        <ul style="margin:0; padding-left:16px;">
+          <li>Filenames must follow <code>####_Suffix.ext</code> (e.g. <code>0001_BaseColor.png</code>).</li>
+          <li>Suffixes (case-insensitive): <code>High</code>, <code>BaseColor</code>, <code>Depth</code>, <code>Metallic</code>, <code>Normal</code>, <code>Reflection</code>, <code>Roughness</code>.</li>
+          <li><code>High</code> is the Beauty/Base (always drawn first, no slider).</li>
+          <li>All other passes overlay the base; sliders start at 0%.</li>
+          <li>Recommended: same resolution across all passes for a frame.</li>
+          <li>Multiple frames supported; use the timeline or type a frame number.</li>
+        </ul>
+      </div>
+
       <div class="footer" id="footer">Drop images to start</div>
     </section>
   </div>
@@ -168,7 +194,7 @@
     return map[s] || (s.charAt(0).toUpperCase()+s.slice(1));
   }
   function parseName(name){
-    // "XXXX_Suffix.ext" (case-insensitive on suffix)
+    // "XXXX_Suffix.ext"
     const base = name.replace(/\.[^.]+$/,'');
     const m = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
     if(!m) return {frameId:'unknown', pass:canonicalPass(base)};
@@ -259,11 +285,11 @@
 
     // Base row (no checkbox, no slider)
     const baseRow = document.createElement('div'); baseRow.className='layer base';
-    const empty = document.createElement('div'); // placeholder for checkbox column
+    const empty = document.createElement('div'); // checkbox col placeholder
     const baseName = document.createElement('div'); baseName.className='name'; baseName.textContent = fr.base ? `${fr.base.name} (Base)` : 'No High';
     const baseChip = document.createElement('span'); baseChip.className='chip'; baseChip.textContent = fr.base ? `${fr.base.w}×${fr.base.h}` : '—';
-    const spacer = document.createElement('div'); // slider column placeholder
-    const spacer2 = document.createElement('div'); // pct column placeholder
+    const spacer = document.createElement('div'); // slider placeholder
+    const spacer2 = document.createElement('div'); // pct placeholder
     baseRow.append(empty, baseName, baseChip, spacer, spacer2);
     layersEl.appendChild(baseRow);
 
@@ -275,7 +301,7 @@
       const row = document.createElement('div');
       row.className = 'layer' + (L.visible ? '' : ' off');
 
-      const cbWrap = document.createElement('div'); cbWrap.className='row';
+      const cbWrap = document.createElement('div');
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
       cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
       cbWrap.appendChild(cb);
@@ -301,7 +327,6 @@
   // ==== Frames / Timeline ====
   function updateFrameList(){
     frameList = Array.from(frames.keys()).sort((a,b)=> Number(a) - Number(b));
-    // Update timeline slider
     if(frameList.length){
       frameRange.min = 0;
       frameRange.max = frameList.length - 1;
@@ -392,11 +417,10 @@
       const val = frameInput.value.trim();
       if(frames.has(val)) setCurrentFrame(val);
       else {
-        // try nearest numeric match
         const n = Number(val);
         if(!isNaN(n) && frameList.length){
           const width = frameList[0].length;
-          const candidate = pad(n, width);
+          const candidate = (''+n).padStart(width,'0');
           if(frames.has(candidate)) setCurrentFrame(candidate);
         }
       }
