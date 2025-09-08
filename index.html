@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frame Viewer • Global Order + Safe Sliders</title>
+  <title>Frame Viewer • Combined defaults + no persistence</title>
   <style>
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
@@ -96,10 +96,10 @@
       <div class="naming">
         <h4>Naming rules</h4>
         <ul style="margin:0; padding-left:16px;">
-          <li>Numeric-only files become <em>Combined 01, 02…</em> (01 is ON at 100% by default).</li>
+          <li>Numeric-only files become <em>Combined 1, 2…</em> (el primero va a 100% por defecto).</li>
           <li>Pass names (case-insensitive): <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code>.</li>
-          <li><code>High</code> or <code>High_#</code> (optional) is the base (no slider).</li>
-          <li>Drag the <b>⋮⋮</b> handle to reorder; order is kept across frames.</li>
+          <li><code>High</code> / <code>High_#</code> (opcional) es el base (sin slider).</li>
+          <li>Arrastrá el <b>⋮⋮</b> para reordenar.</li>
         </ul>
       </div>
     </aside>
@@ -118,7 +118,7 @@
 
 <script>
 (()=>{
-  // --- DOM refs ---
+  // --- DOM ---
   const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
   const fileInput=document.getElementById('file'), layersEl=document.getElementById('layers');
   const frameInput=document.getElementById('frameInput'), frameRange=document.getElementById('frameRange');
@@ -128,37 +128,19 @@
   const footer=document.getElementById('footer');
 
   // --- State ---
-  // frames: Map<frameId, { base:entry|null, layers:entry[], userSorted:boolean }>
+  // frames: Map<frameId, { base:entry|null, layers:entry[] }>
   // entry: { kind:'High'|'Combined'|'Layer', name?, displayName?, combinedIndex?, img,w,h, visible, opacity }
   let frames = new Map();
   let frameList = [];
   let currentFrameId = null;
 
-  // persistent opacities per logical key
-  const LS_OPA_KEY = 'frameviewer.opacityDefaults.v1';
-  // persistent global order (array of keys)
-  const LS_ORD_KEY = 'frameviewer.layerOrder.v1';
+  // Opacidades por nombre lógico (solo en memoria para esta sesión)
+  const opacityDefaults = new Map(); // e.g., 'Combined 1' -> 1, 'BaseColor' -> 0.35
 
-  let opacityDefaults = new Map();
-  let globalOrder = []; // e.g., ["Combined 01","BaseColor","Depth",...]
-
-  try{
-    const raw = localStorage.getItem(LS_OPA_KEY);
-    if(raw){ opacityDefaults = new Map(Object.entries(JSON.parse(raw)).map(([k,v])=>[k,Number(v)]) ); }
-  }catch{}
-  try{
-    const raw = localStorage.getItem(LS_ORD_KEY);
-    if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr)) globalOrder = arr.map(String); }
-  }catch{}
-
-  const saveOpacity = ()=> localStorage.setItem(LS_OPA_KEY, JSON.stringify(Object.fromEntries(opacityDefaults)));
-  const saveOrder   = ()=> localStorage.setItem(LS_ORD_KEY, JSON.stringify(globalOrder));
-
-  // view
+  // View
   let zoom=1, panX=0, panY=0, bgToggle=0, baseW=0, baseH=0;
 
   const PASS_ORDER = ['BaseColor','Depth','Metallic','Normal','Reflection','Roughness'];
-  const pad2 = n => String(n).padStart(2,'0');
   const trimLower = s => String(s).replace(/\s+/g,'').toLowerCase();
   const isHigh = s => ['high','beauty'].includes(trimLower(s));
   const canonical = p => ({
@@ -171,13 +153,13 @@
   }[trimLower(p)] || (p.charAt(0).toUpperCase()+p.slice(1)));
 
   function layerKey(L){
-    return (L.kind==='Combined') ? (L.displayName || `Combined ${pad2(L.combinedIndex||1)}`) : L.name;
+    return (L.kind==='Combined') ? (L.displayName || `Combined ${L.combinedIndex||1}`) : L.name;
   }
 
   // filename → {frameId, kind, pass}
   function parseName(name){
     const base = name.replace(/\.[^.]+$/,'');
-    // numeric only → Combined
+    // Solo números → Combined
     const mNum = base.match(/^(\d+)$/);
     if(mNum) return {frameId:mNum[1], kind:'Combined', pass:'Combined'};
     // Pass_Frame
@@ -187,22 +169,21 @@
       if(isHigh(pass)) return {frameId:mPF[2], kind:'High', pass:'High'};
       return {frameId:mPF[2], kind:'Layer', pass};
     }
-    // Legacy Frame_Pass
-    const mFP = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
-    if(mFP){
-      const pass = canonical(mFP[2]);
-      if(isHigh(pass)) return {frameId:mFP[1], kind:'High', pass:'High'};
-      return {frameId:mFP[1], kind:'Layer', pass};
-    }
-    if(isHigh(base)) return {frameId:'unknown', kind:'High', pass:'High'};
-    const mTail = base.match(/(\d+)$/);
-    if(mTail){
-      return {frameId:mTail[1], kind:'Layer', pass:canonical(base.slice(0,mTail.index))};
-    }
+    // Fallback: todo a Layer con frame 'unknown'
     return {frameId:'unknown', kind:'Layer', pass:canonical(base)};
   }
 
-  // apply persistent opacities to a frame
+  // Orden por defecto: Combined (por numero), luego PASS_ORDER
+  function defaultSort(fr){
+    fr.layers.sort((a,b)=>{
+      if(a.kind==='Combined' && b.kind!=='Combined') return -1;
+      if(b.kind==='Combined' && a.kind!=='Combined') return 1;
+      if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
+      // Ambos capas normales
+      return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
+    });
+  }
+
   function applyOpacityDefaults(fr){
     for(const L of fr.layers){
       const key = layerKey(L);
@@ -214,39 +195,7 @@
     }
   }
 
-  // sort layers in a frame according to globalOrder; append unknowns via sensible defaults
-  function applyGlobalOrder(fr){
-    const idxOf = key => {
-      const i = globalOrder.indexOf(key);
-      return i === -1 ? Number.POSITIVE_INFINITY : i;
-    };
-    fr.layers.sort((a,b)=>{
-      const ka = layerKey(a), kb = layerKey(b);
-      const ia = idxOf(ka), ib = idxOf(kb);
-      if(ia !== ib) return ia - ib;
-
-      // If neither is in globalOrder, use default grouping: Combined first by combinedIndex, then PASS_ORDER
-      if(ia===Number.POSITIVE_INFINITY && ib===Number.POSITIVE_INFINITY){
-        if(a.kind==='Combined' && b.kind!=='Combined') return -1;
-        if(b.kind==='Combined' && a.kind!=='Combined') return 1;
-        if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
-        return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
-      }
-      // if both same index (shouldn't happen), keep as-is
-      return 0;
-    });
-  }
-
-  // update globalOrder from the current frame's visible order
-  function captureGlobalOrderFromFrame(fr){
-    const order = fr.layers.map(L => layerKey(L));
-    // de-duplicate preserving first occurrence
-    const seen = new Set();
-    globalOrder = order.filter(k => (seen.has(k)?false:seen.add(k)));
-    saveOrder();
-  }
-
-  // --- Canvas & draw ---
+  // --- Canvas ---
   function setCanvasSize(){
     cv.width = cv.clientWidth * devicePixelRatio;
     cv.height = cv.clientHeight * devicePixelRatio;
@@ -276,7 +225,7 @@
     ctx.setTransform(1,0,0,1,panX,panY);
     ctx.scale(zoom,zoom);
 
-    // Base (scaled to baseW/H)
+    // Base (escalado a baseW/H)
     if(fr.base){
       ctx.globalAlpha = 1;
       ctx.drawImage(fr.base.img,0,0,fr.base.w,fr.base.h, 0,0, baseW,baseH);
@@ -298,18 +247,18 @@
   function updateMismatchWarning(fr){
     let bw = fr.base ? fr.base.w : (fr.layers[0]?.w||0);
     let bh = fr.base ? fr.base.h : (fr.layers[0]?.h||0);
-    const anyMismatch = fr.layers.some(L => L.w !== bw || L.h !== bh) || (fr.base && (fr.base.w!==bw || fr.base.h!==bh)); // trivial check
+    const anyMismatch = fr.layers.some(L => L.w !== bw || L.h !== bh) || (fr.base && (fr.base.w!==bw || fr.base.h!==bh));
     infoWarn.textContent = anyMismatch ? 'Different sizes. Scaling to base.' : '';
   }
 
-  // --- UI render (handle-only drag, sliders safe) ---
+  // --- UI (drag solo en handle; sliders no draguean) ---
   function renderLayersUI(){
     layersEl.innerHTML = '';
     if(!currentFrameId){ footer.textContent = 'No images'; return; }
     const fr = frames.get(currentFrameId);
     if(!fr) return;
 
-    // Base informational row
+    // Base info
     if(fr.base){
       const baseRow = document.createElement('div'); baseRow.className='layer';
       baseRow.innerHTML = `
@@ -322,14 +271,12 @@
       layersEl.appendChild(baseRow);
     }
 
-    // Build rows in fr.layers (already ordered by applyGlobalOrder)
     fr.layers.forEach((L, idx)=>{
       const row = document.createElement('div'); row.className='layer' + (L.visible ? '' : ' off');
       row.dataset.index = idx;
 
-      // Drag handle ONLY
       const handle = document.createElement('div'); handle.className='handle'; handle.textContent = '⋮⋮';
-      handle.setAttribute('draggable', 'true');
+      handle.setAttribute('draggable','true');
       handle.addEventListener('dragstart', e=>{
         row.classList.add('dragging');
         e.dataTransfer.setData('text/plain', String(idx));
@@ -337,7 +284,6 @@
       });
       handle.addEventListener('dragend', ()=> row.classList.remove('dragging'));
 
-      // Drop target = the row
       row.addEventListener('dragover', e=>{ e.preventDefault(); row.classList.add('drop-target'); e.dataTransfer.dropEffect='move'; });
       row.addEventListener('dragleave', ()=> row.classList.remove('drop-target'));
       row.addEventListener('drop', e=>{
@@ -347,32 +293,25 @@
         if(isNaN(from) || isNaN(to) || from===to) return;
         const moved = fr.layers.splice(from,1)[0];
         fr.layers.splice(to,0,moved);
-        // capture global order from this frame (by logical key) and persist
-        captureGlobalOrderFromFrame(fr);
         renderLayersUI();
         draw();
       });
 
-      // Checkbox
       const cbWrap = document.createElement('div'); cbWrap.className='cbwrap';
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
       cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
       cbWrap.appendChild(cb);
 
-      // Name label (logical key)
       const name = document.createElement('div'); name.className='name';
       name.textContent = layerKey(L);
       name.title = name.textContent;
 
-      // Chip (dims)
       const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
 
-      // Slider
       const sliderWrap = document.createElement('div'); sliderWrap.className='slider';
       const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100;
       slider.value = Math.round((L.opacity??0)*100);
 
-      // Prevent drag from inputs
       [slider, cb].forEach(el=>{
         el.addEventListener('mousedown', ev=> ev.stopPropagation());
         el.addEventListener('touchstart', ev=> ev.stopPropagation(), {passive:true});
@@ -383,17 +322,17 @@
         const v = slider.value/100;
         L.opacity = v;
         if(v>0 && !L.visible){ L.visible = true; row.classList.remove('off'); cb.checked = true; }
-        opacityDefaults.set(layerKey(L), v); saveOpacity();
+        // Guardamos en memoria (solo sesión)
+        opacityDefaults.set(layerKey(L), v);
         draw();
       });
 
       sliderWrap.appendChild(slider);
-
       row.append(handle, cbWrap, name, chip, sliderWrap);
       layersEl.appendChild(row);
     });
 
-    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder (order applies to all frames).';
+    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder.';
   }
 
   // --- Frames / timeline ---
@@ -419,11 +358,11 @@
     frameInput.value = fid;
     const fr = frames.get(fid);
 
-    // apply persistent settings
+    // Aplicar opacidades guardadas en la sesión y ordenar por defecto (Combined n, luego pases)
     applyOpacityDefaults(fr);
-    applyGlobalOrder(fr);
+    defaultSort(fr);
 
-    // base dimensions
+    // Dimensiones base
     baseW = fr.base ? fr.base.w : (fr.layers[0]?.w || 0);
     baseH = fr.base ? fr.base.h : (fr.layers[0]?.h || 0);
 
@@ -446,30 +385,47 @@
       await new Promise(res=>{ img.onload=res; img.src=url; });
       const {frameId, kind, pass} = parseName(f.name);
 
-      if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[], userSorted:false}); }
+      if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[]}); }
       const fr = frames.get(frameId);
 
       if(kind==='High'){
         fr.base = { kind:'High', name:'High', img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:1 };
       } else if(kind==='Combined'){
+        // contar cuántos Combined ya hay para este frame
         const existingCombined = fr.layers.filter(x=>x.kind==='Combined').length;
-        const idx = existingCombined + 1;
-        const displayName = `Combined ${pad2(idx)}`;
-        // Combined 01 default = 1.0 unless user stored another value
-        let op = opacityDefaults.has(displayName) ? Number(opacityDefaults.get(displayName)) : (idx===1 ? 1 : 0);
-        if(idx===1 && !opacityDefaults.has(displayName)){ opacityDefaults.set(displayName,1); saveOpacity(); }
-        fr.layers.push({ kind:'Combined', displayName, combinedIndex: idx, img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
+        const idx = existingCombined + 1;               // 1, 2, 3...
+        const displayName = `Combined ${idx}`;
+
+        // Regla solicitada:
+        // - Combined 1 => opacidad 1.0 (siempre que se carga)
+        // - Combined 2+ => opacidad 0.0
+        const op = (idx === 1) ? 1 : 0;
+
+        fr.layers.push({
+          kind:'Combined', displayName, combinedIndex: idx,
+          img, w:img.naturalWidth, h:img.naturalHeight,
+          visible:true, opacity: op
+        });
+
+        // Además, guardamos en memoria el default de sesión por si cambias de frame
+        opacityDefaults.set(displayName, op);
+
       } else {
         const key = pass;
+        // Por defecto 0 (si querés un default distinto por pase, podés setearlo acá)
         const op = opacityDefaults.has(key) ? Number(opacityDefaults.get(key)) : 0;
-        fr.layers.push({ kind:'Layer', name:pass, img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
+        fr.layers.push({
+          kind:'Layer', name:pass,
+          img, w:img.naturalWidth, h:img.naturalHeight,
+          visible:true, opacity: op
+        });
       }
     }
 
-    // apply global order to all frames after loading new layers
-    for(const [fid, fr] of frames.entries()){
+    // Orden por defecto para todos los frames (no persistente)
+    for(const [, fr] of frames.entries()){
       applyOpacityDefaults(fr);
-      applyGlobalOrder(fr);
+      defaultSort(fr);
     }
 
     updateFrameList();
@@ -477,9 +433,8 @@
     else if(currentFrameId){ setCurrentFrame(currentFrameId); }
   }
 
-  // --- Upload & DnD zones ---
+  // --- Upload & DnD ---
   fileInput.addEventListener('change', e=> handleFiles(e.target.files));
-
   ;['dragenter','dragover','dragleave','drop'].forEach(evt=>{
     [layersEl, cv].forEach(el=>{
       el.addEventListener(evt, e=>{ e.preventDefault(); if(evt==='drop') handleFiles(e.dataTransfer.files); });
