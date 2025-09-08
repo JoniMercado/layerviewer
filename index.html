@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frame Viewer • Combined defaults + no persistence</title>
+  <title>Frame Viewer • Session Layer Order + Combined Defaults</title>
   <style>
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
@@ -12,7 +12,7 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Inter,Arial,sans-serif}
+    body{margin:0; background:var(--bg); color:#e5e7eb; font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Inter,Arial,sans-serif}
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
 
     header{display:grid; grid-template-columns:auto 1fr auto auto auto auto; gap:.5rem; align-items:center; padding:.5rem .75rem; background:#0f1317; border-bottom:1px solid var(--line)}
@@ -96,10 +96,10 @@
       <div class="naming">
         <h4>Naming rules</h4>
         <ul style="margin:0; padding-left:16px;">
-          <li>Numeric-only files become <em>Combined 1, 2…</em> (el primero va a 100% por defecto).</li>
+          <li>Numeric-only files → <em>Combined 1, 2…</em> (1 inicia al 100%).</li>
           <li>Pass names (case-insensitive): <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code>.</li>
-          <li><code>High</code> / <code>High_#</code> (opcional) es el base (sin slider).</li>
-          <li>Arrastrá el <b>⋮⋮</b> para reordenar.</li>
+          <li><code>High</code> / <code>High_#</code> opcional como base (sin slider).</li>
+          <li>Reordená con el <b>⋮⋮</b>; el orden se replica a todos los frames (durante la sesión).</li>
         </ul>
       </div>
     </aside>
@@ -134,8 +134,12 @@
   let frameList = [];
   let currentFrameId = null;
 
-  // Opacidades por nombre lógico (solo en memoria para esta sesión)
-  const opacityDefaults = new Map(); // e.g., 'Combined 1' -> 1, 'BaseColor' -> 0.35
+  // Opacidad por nombre lógico (RAM, solo sesión)
+  const opacityDefaults = new Map(); // 'Combined 1' -> 1, 'BaseColor' -> 0…
+
+  // ORDEN GLOBAL (RAM, solo sesión): lista de claves lógicas en el orden deseado
+  // Ej.: ["Combined 1","BaseColor","Depth",...]
+  let globalOrder = [];
 
   // View
   let zoom=1, panX=0, panY=0, bgToggle=0, baseW=0, baseH=0;
@@ -169,21 +173,21 @@
       if(isHigh(pass)) return {frameId:mPF[2], kind:'High', pass:'High'};
       return {frameId:mPF[2], kind:'Layer', pass};
     }
-    // Fallback: todo a Layer con frame 'unknown'
+    // Fallback
     return {frameId:'unknown', kind:'Layer', pass:canonical(base)};
   }
 
-  // Orden por defecto: Combined (por numero), luego PASS_ORDER
+  // Orden por defecto dentro del frame (si no hay globalOrder)
   function defaultSort(fr){
     fr.layers.sort((a,b)=>{
       if(a.kind==='Combined' && b.kind!=='Combined') return -1;
       if(b.kind==='Combined' && a.kind!=='Combined') return 1;
       if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
-      // Ambos capas normales
       return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
     });
   }
 
+  // Aplica opacidades de sesión
   function applyOpacityDefaults(fr){
     for(const L of fr.layers){
       const key = layerKey(L);
@@ -193,6 +197,35 @@
         if(v>0) L.visible = true;
       }
     }
+  }
+
+  // Aplica el orden global de la sesión (si existe)
+  function applyGlobalOrder(fr){
+    if(!globalOrder.length){ defaultSort(fr); return; }
+    const idxOf = key => {
+      const i = globalOrder.indexOf(key);
+      return i === -1 ? Number.POSITIVE_INFINITY : i;
+    };
+    fr.layers.sort((a,b)=>{
+      const ka = layerKey(a), kb = layerKey(b);
+      const ia = idxOf(ka), ib = idxOf(kb);
+      if(ia !== ib) return ia - ib;
+
+      // Si ambos no están en globalOrder, caemos al orden por defecto
+      if(ia===Number.POSITIVE_INFINITY && ib===Number.POSITIVE_INFINITY){
+        if(a.kind==='Combined' && b.kind!=='Combined') return -1;
+        if(b.kind==='Combined' && a.kind!=='Combined') return 1;
+        if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
+        return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
+      }
+      return 0;
+    });
+  }
+
+  // Captura el orden actual de un frame y lo promueve a orden global de sesión
+  function captureGlobalOrderFromFrame(fr){
+    const seen = new Set();
+    globalOrder = fr.layers.map(L => layerKey(L)).filter(k => (seen.has(k)?false:seen.add(k)));
   }
 
   // --- Canvas ---
@@ -225,12 +258,10 @@
     ctx.setTransform(1,0,0,1,panX,panY);
     ctx.scale(zoom,zoom);
 
-    // Base (escalado a baseW/H)
     if(fr.base){
       ctx.globalAlpha = 1;
       ctx.drawImage(fr.base.img,0,0,fr.base.w,fr.base.h, 0,0, baseW,baseH);
     }
-    // Layers
     for(const L of fr.layers){
       if(!L.visible || L.opacity<=0) continue;
       ctx.globalAlpha = Math.max(0, Math.min(1, L.opacity));
@@ -251,14 +282,13 @@
     infoWarn.textContent = anyMismatch ? 'Different sizes. Scaling to base.' : '';
   }
 
-  // --- UI (drag solo en handle; sliders no draguean) ---
+  // --- UI (drag solo en handle; sliders OK) ---
   function renderLayersUI(){
     layersEl.innerHTML = '';
     if(!currentFrameId){ footer.textContent = 'No images'; return; }
     const fr = frames.get(currentFrameId);
     if(!fr) return;
 
-    // Base info
     if(fr.base){
       const baseRow = document.createElement('div'); baseRow.className='layer';
       baseRow.innerHTML = `
@@ -275,6 +305,7 @@
       const row = document.createElement('div'); row.className='layer' + (L.visible ? '' : ' off');
       row.dataset.index = idx;
 
+      // Handle (único elemento draggable)
       const handle = document.createElement('div'); handle.className='handle'; handle.textContent = '⋮⋮';
       handle.setAttribute('draggable','true');
       handle.addEventListener('dragstart', e=>{
@@ -284,6 +315,7 @@
       });
       handle.addEventListener('dragend', ()=> row.classList.remove('dragging'));
 
+      // Drop sobre la fila
       row.addEventListener('dragover', e=>{ e.preventDefault(); row.classList.add('drop-target'); e.dataTransfer.dropEffect='move'; });
       row.addEventListener('dragleave', ()=> row.classList.remove('drop-target'));
       row.addEventListener('drop', e=>{
@@ -293,21 +325,32 @@
         if(isNaN(from) || isNaN(to) || from===to) return;
         const moved = fr.layers.splice(from,1)[0];
         fr.layers.splice(to,0,moved);
+
+        // Capturamos este orden y lo aplicamos como orden global de la sesión
+        captureGlobalOrderFromFrame(fr);
+
+        // Reaplicar orden global a TODOS los frames para mantener consistencia
+        for(const [, other] of frames.entries()) applyGlobalOrder(other);
+
         renderLayersUI();
         draw();
       });
 
+      // Checkbox
       const cbWrap = document.createElement('div'); cbWrap.className='cbwrap';
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
       cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
       cbWrap.appendChild(cb);
 
+      // Nombre
       const name = document.createElement('div'); name.className='name';
       name.textContent = layerKey(L);
       name.title = name.textContent;
 
+      // Dim chip
       const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
 
+      // Slider
       const sliderWrap = document.createElement('div'); sliderWrap.className='slider';
       const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100;
       slider.value = Math.round((L.opacity??0)*100);
@@ -322,7 +365,7 @@
         const v = slider.value/100;
         L.opacity = v;
         if(v>0 && !L.visible){ L.visible = true; row.classList.remove('off'); cb.checked = true; }
-        // Guardamos en memoria (solo sesión)
+        // guardar en sesión por nombre lógico (solo RAM)
         opacityDefaults.set(layerKey(L), v);
         draw();
       });
@@ -332,7 +375,7 @@
       layersEl.appendChild(row);
     });
 
-    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder.';
+    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder (order mirrors across frames this session).';
   }
 
   // --- Frames / timeline ---
@@ -358,11 +401,11 @@
     frameInput.value = fid;
     const fr = frames.get(fid);
 
-    // Aplicar opacidades guardadas en la sesión y ordenar por defecto (Combined n, luego pases)
+    // aplicar settings de sesión
     applyOpacityDefaults(fr);
-    defaultSort(fr);
+    applyGlobalOrder(fr); // respeta el orden global si ya existe; si no, defaultSort dentro
 
-    // Dimensiones base
+    // base dims
     baseW = fr.base ? fr.base.w : (fr.layers[0]?.w || 0);
     baseH = fr.base ? fr.base.h : (fr.layers[0]?.h || 0);
 
@@ -391,41 +434,23 @@
       if(kind==='High'){
         fr.base = { kind:'High', name:'High', img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:1 };
       } else if(kind==='Combined'){
-        // contar cuántos Combined ya hay para este frame
         const existingCombined = fr.layers.filter(x=>x.kind==='Combined').length;
-        const idx = existingCombined + 1;               // 1, 2, 3...
+        const idx = existingCombined + 1; // 1, 2, 3...
         const displayName = `Combined ${idx}`;
-
-        // Regla solicitada:
-        // - Combined 1 => opacidad 1.0 (siempre que se carga)
-        // - Combined 2+ => opacidad 0.0
-        const op = (idx === 1) ? 1 : 0;
-
-        fr.layers.push({
-          kind:'Combined', displayName, combinedIndex: idx,
-          img, w:img.naturalWidth, h:img.naturalHeight,
-          visible:true, opacity: op
-        });
-
-        // Además, guardamos en memoria el default de sesión por si cambias de frame
-        opacityDefaults.set(displayName, op);
-
+        const op = (idx === 1) ? 1 : 0; // regla solicitada
+        fr.layers.push({ kind:'Combined', displayName, combinedIndex: idx, img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
+        opacityDefaults.set(displayName, op); // sesión
       } else {
         const key = pass;
-        // Por defecto 0 (si querés un default distinto por pase, podés setearlo acá)
         const op = opacityDefaults.has(key) ? Number(opacityDefaults.get(key)) : 0;
-        fr.layers.push({
-          kind:'Layer', name:pass,
-          img, w:img.naturalWidth, h:img.naturalHeight,
-          visible:true, opacity: op
-        });
+        fr.layers.push({ kind:'Layer', name:pass, img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
       }
     }
 
-    // Orden por defecto para todos los frames (no persistente)
+    // Tras cargar, aplicar orden global (si existe) y opacidades a todos los frames
     for(const [, fr] of frames.entries()){
       applyOpacityDefaults(fr);
-      defaultSort(fr);
+      applyGlobalOrder(fr);
     }
 
     updateFrameList();
