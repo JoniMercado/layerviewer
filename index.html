@@ -9,11 +9,14 @@
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
       --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
-      --sliderw: 260px; /* <-- uniform slider column width */
+      --sliderw: 260px; /* fixed slider column width */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+    body{margin:0; background:var(--bg); color:var(--text);
+         font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+
+    .muted{color:var(--muted)}
 
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
 
@@ -25,19 +28,22 @@
       border-bottom:1px solid var(--line)
     }
     header h1{font-size:14px; margin:0; letter-spacing:.2px; opacity:.95}
-    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text); padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
+    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text);
+         padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
     .btn:hover{border-color:#2b3646}
     .field{display:flex; align-items:center; gap:.4rem}
-    .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem; padding:.4rem .55rem; font-size:12px; width:90px}
+    .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem;
+           padding:.4rem .55rem; font-size:12px; width:90px}
     .range-header{display:flex; align-items:center; gap:.5rem}
     .range-header input[type=range]{width:280px}
 
     .main{display:grid; grid-template-columns:360px 1fr; height:calc(100vh - 50px)}
-    .left{border-right:1px solid var(--line); background:var(--panel); overflow:auto; padding:.5rem}
+    .left{border-right:1px solid var(--line); background:var(--panel);
+          display:flex; flex-direction:column; justify-content:space-between}
+    .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow:auto}
     .right{position:relative}
 
     /* Layer list */
-    .layers{display:flex; flex-direction:column; gap:.5rem}
     .layer{
       display:grid;
       grid-template-columns:22px auto max-content var(--sliderw) max-content; /* fixed slider column */
@@ -53,37 +59,31 @@
     .slider{display:flex; align-items:center; gap:.5rem}
     .slider input[type=range]{width:100%} /* fills fixed column */
     .pct{width:40px; text-align:right; font-size:12px; color:#c7cbd1}
+    .row input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
 
     .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
     .toolbar .btn{backdrop-filter:blur(6px); background:rgba(18,22,28,.75)}
 
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
-    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted); background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
+
+    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted);
+            background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
     .warn{color:#fcd34d}
 
-    .row input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
-
-    /* Naming rules box (bottom-left) */
+    /* Naming rules inside left panel */
     .naming{
-      position:absolute; left:.5rem; bottom:.5rem; z-index:9;
-      max-width:420px;
+      margin:.5rem;
       background:rgba(9,12,16,.85);
       border:1px solid #1a2230; border-radius:.6rem;
       padding:.6rem .7rem; font-size:12px; line-height:1.4;
-      backdrop-filter: blur(6px);
     }
     .naming h4{margin:.1rem 0 .35rem 0; font-size:12px; color:#e5e7eb}
     .naming code{background:#0f1720; border:1px solid #202b3a; padding:.05rem .3rem; border-radius:.35rem}
 
-    @media (max-width: 1000px){
-      header{grid-template-columns:auto 1fr auto; grid-auto-rows:auto}
-      .range-header{grid-column: 1 / -1}
-    }
     @media (max-width: 900px){
       .main{grid-template-columns: 1fr}
-      .left{position:absolute; inset:auto 0 0 0; height:48%; border-right:none; border-top:1px solid var(--line)}
+      .left{position:absolute; inset:auto 0 0 0; height:48%}
       .right{height:52vh}
-      .naming{max-width:80vw}
     }
   </style>
 </head>
@@ -116,6 +116,18 @@
   <div class="main">
     <aside class="left">
       <div class="layers" id="layers"></div>
+
+      <div class="naming">
+        <h4>Naming rules</h4>
+        <ul style="margin:0; padding-left:16px;">
+          <li>Filenames: <code>####_Suffix.ext</code> (e.g. <code>0001_BaseColor.png</code>).</li>
+          <li>Suffixes (case-insensitive): <code>High</code>, <code>BaseColor</code>, <code>Depth</code>, <code>Metallic</code>, <code>Normal</code>, <code>Reflection</code>, <code>Roughness</code>.</li>
+          <li><code>High</code> = Beauty/Base (always drawn first, no slider).</li>
+          <li>Other passes overlay the base with fade (sliders start at 0%).</li>
+          <li>Recommended: same resolution across all passes within a frame.</li>
+          <li>Multiple frames supported; use the timeline or type a frame number.</li>
+        </ul>
+      </div>
     </aside>
 
     <section class="right">
@@ -126,19 +138,6 @@
       </div>
 
       <canvas id="cv"></canvas>
-
-      <div class="naming">
-        <h4>Naming rules</h4>
-        <ul style="margin:0; padding-left:16px;">
-          <li>Filenames must follow <code>####_Suffix.ext</code> (e.g. <code>0001_BaseColor.png</code>).</li>
-          <li>Suffixes (case-insensitive): <code>High</code>, <code>BaseColor</code>, <code>Depth</code>, <code>Metallic</code>, <code>Normal</code>, <code>Reflection</code>, <code>Roughness</code>.</li>
-          <li><code>High</code> is the Beauty/Base (always drawn first, no slider).</li>
-          <li>All other passes overlay the base; sliders start at 0%.</li>
-          <li>Recommended: same resolution across all passes for a frame.</li>
-          <li>Multiple frames supported; use the timeline or type a frame number.</li>
-        </ul>
-      </div>
-
       <div class="footer" id="footer">Drop images to start</div>
     </section>
   </div>
@@ -383,7 +382,7 @@
   // Upload input
   fileInput.addEventListener('change', e=> handleFiles(e.target.files));
 
-  // Drag & drop on left panel and canvas
+  // Drag & drop on left panel (layers list) and canvas
   ['dragenter','dragover'].forEach(ev=> [layersEl, cv].forEach(el => el.addEventListener(ev, e=>{e.preventDefault();})));
   ['dragleave','drop'].forEach(ev=> [layersEl, cv].forEach(el => el.addEventListener(ev, e=>{e.preventDefault();})));
   layersEl.addEventListener('drop', e=> handleFiles(e.dataTransfer.files));
@@ -420,7 +419,7 @@
         const n = Number(val);
         if(!isNaN(n) && frameList.length){
           const width = frameList[0].length;
-          const candidate = (''+n).padStart(width,'0');
+          const candidate = pad(n, width);
           if(frames.has(candidate)) setCurrentFrame(candidate);
         }
       }
