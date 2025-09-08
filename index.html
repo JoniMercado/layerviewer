@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frame Viewer • Persistent Opacity + Reorder Safe</title>
-  <meta name="description" content="Compare render passes per frame. Persistent opacities across frames and after reordering; Combined ## support; manual layer reordering.">
+  <title>Frame Viewer • Full Version</title>
   <style>
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
@@ -13,82 +12,43 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
-
-    .muted{color:var(--muted)}
+    body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Inter,Arial,sans-serif}
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
-
-    header{
-      display:grid; grid-template-columns:auto 1fr auto auto auto auto;
-      gap:.5rem; align-items:center; padding:.5rem .75rem;
-      background:linear-gradient(180deg,#0f1317,#0b0d10); border-bottom:1px solid var(--line)
-    }
-    header h1{font-size:14px; margin:0; opacity:.95; letter-spacing:.2px}
-    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:#fff; padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
-    .btn:hover{border-color:#2b3646}
+    header{display:grid; grid-template-columns:auto 1fr auto auto auto auto; gap:.5rem; align-items:center; padding:.5rem .75rem; background:#0f1317; border-bottom:1px solid var(--line)}
+    header h1{font-size:14px; margin:0; opacity:.95}
+    .btn{border:1px solid var(--line); background:#12161c; color:#fff; padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
     .field{display:flex; align-items:center; gap:.4rem}
     .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem; padding:.4rem .55rem; font-size:12px; width:90px}
-    .range-header{display:flex; align-items:center; gap:.5rem; min-width:0}
-    .range-header input[type=range]{width:clamp(160px, 28vw, 320px)}
-
-    .main{display:grid; grid-template-columns:400px 1fr; height:calc(100vh - 50px); min-height:420px}
-    .left{
-      border-right:1px solid var(--line); background:var(--panel);
-      display:flex; flex-direction:column; justify-content:space-between;
-      min-width:0; overflow-x:hidden
-    }
-    .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; overflow-x:hidden; min-height:0}
-    .right{position:relative; min-width:0}
-
-    .layer{
-      display:grid;
-      grid-template-columns:20px 24px minmax(120px,1fr) max-content var(--sliderw);
-      align-items:center; gap:.4rem;
-      padding:.4rem; border-radius:.5rem; border:1px solid transparent; background:#0e1218;
-      transition:opacity .15s ease, border-color .15s ease; min-width:0
-    }
+    .range-header{display:flex; align-items:center; gap:.5rem}
+    .range-header input[type=range]{width:clamp(160px,28vw,320px)}
+    .main{display:grid; grid-template-columns:400px 1fr; height:calc(100vh - 50px)}
+    .left{border-right:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; justify-content:space-between}
+    .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto}
+    .right{position:relative}
+    .layer{display:grid; grid-template-columns:20px 24px minmax(120px,1fr) max-content var(--sliderw); align-items:center; gap:.4rem; padding:.4rem; border-radius:.5rem; background:#0e1218; cursor:grab}
     .layer.off{opacity:.45}
-    .handle{cursor:grab; user-select:none; font-size:14px; line-height:1; text-align:center; opacity:.8}
-    .dragging{opacity:.6; border-color:#2b3646}
+    .layer input, .layer .slider input{cursor:default}
+    .handle{font-size:14px; opacity:.8}
+    .dragging{opacity:.6; border:1px solid #2b3646}
     .drop-target{outline:2px dashed #2b3646; outline-offset:-3px}
-
-    .cbwrap{text-align:center}
     .cbwrap input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent)}
-
-    .name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
-    .chip{
-      font-size:11px; color:#cbd5e1; background:#0a0f15;
-      padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem;
-      white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis
-    }
-    .slider{display:flex; align-items:center; gap:.4rem; min-width:0}
+    .name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .chip{font-size:11px; color:#cbd5e1; background:#0a0f15; padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem}
+    .slider{display:flex; align-items:center; gap:.4rem}
     .slider input[type=range]{width:100%}
-
-    .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
-    .toolbar .btn{backdrop-filter:blur(6px); background:rgba(18,22,28,.75)}
-
+    .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem}
+    .toolbar .btn{background:rgba(18,22,28,.75)}
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
-    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:#cbd5e1; background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
-    .warn{color:#fcd34d}
-
+    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:#cbd5e1; background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem}
     .naming{margin:.5rem; background:#0f1317; border:1px solid #1a2230; border-radius:.5rem; padding:.5rem; font-size:12px; line-height:1.4}
     .naming h4{margin:.1rem 0 .3rem 0; font-size:12px; color:#e5e7eb}
     .naming code{background:#0f1720; border:1px solid #202b3a; padding:.05rem .3rem; border-radius:.35rem}
-
-    @media (max-width: 900px){
-      .main{grid-template-columns:1fr}
-      .left{position:absolute; bottom:0; height:50%}
-      .right{height:50%}
-      :root{--sliderw:clamp(90px, 40%, 120px);}
-    }
   </style>
 </head>
 <body>
 <div class="app">
-
   <header>
     <h1>Frame Viewer</h1>
-
     <div class="range-header">
       <label for="frameRange">Timeline</label>
       <input id="frameRange" type="range" min="0" max="0" step="1" value="0">
@@ -96,40 +56,35 @@
       <span id="rangeCur" class="muted">—</span>
       <span id="rangeMax" class="muted">—</span>
     </div>
-
     <div class="field">
       <label for="frameInput">Frame</label>
       <input id="frameInput" class="input" placeholder="0001" />
     </div>
-
     <button class="btn" id="btnFit">Fit</button>
     <button class="btn" id="btn100">100%</button>
     <button class="btn" id="btnBG">BG</button>
     <label class="btn" for="file">Upload</label>
     <input id="file" type="file" accept="image/*" multiple hidden>
   </header>
-
   <div class="main">
     <aside class="left">
       <div class="layers" id="layers"></div>
       <div class="naming">
         <h4>Naming rules</h4>
         <ul style="margin:0; padding-left:16px;">
-          <li>Numeric-only files (e.g. <code>1.png</code>, <code>025.jpg</code>) become <em>Combined 01, 02…</em> (listed first).</li>
-          <li>Layer pattern (case-insensitive): <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code>.</li>
-          <li><code>High</code> or <code>High_#</code> (if present) renders as base; if absent, layers still render fine.</li>
-          <li>Drag the <b>⋮⋮</b> handle to reorder layers (order is preserved).</li>
+          <li>Numeric-only files → <em>Combined 01, 02…</em> (01 ON at 100%).</li>
+          <li>Pass format: <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code>.</li>
+          <li><code>High</code> (optional) drawn as base, no slider.</li>
+          <li>Drag rows to reorder; order is preserved.</li>
         </ul>
       </div>
     </aside>
-
     <section class="right">
       <div class="toolbar">
         <div class="btn muted" id="infoDim">–</div>
         <div class="btn muted" id="infoZoom">–</div>
         <div class="btn muted" id="infoWarn"></div>
       </div>
-
       <canvas id="cv"></canvas>
       <div class="footer" id="footer">Drop images to start</div>
     </section>
@@ -138,419 +93,75 @@
 
 <script>
 (()=>{
-  // ==== DOM ====
-  const fileInput = document.getElementById('file');
-  const layersEl = document.getElementById('layers');
-  const frameInput = document.getElementById('frameInput');
-  const frameRange = document.getElementById('frameRange');
-  const rangeMin = document.getElementById('rangeMin');
-  const rangeCur = document.getElementById('rangeCur');
-  const rangeMax = document.getElementById('rangeMax');
-  const cv = document.getElementById('cv');
-  const ctx = cv.getContext('2d');
-  const btnFit = document.getElementById('btnFit');
-  const btn100 = document.getElementById('btn100');
-  const btnBG = document.getElementById('btnBG');
-  const infoDim = document.getElementById('infoDim');
-  const infoZoom = document.getElementById('infoZoom');
-  const infoWarn = document.getElementById('infoWarn');
-  const footer = document.getElementById('footer');
+  const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),
+        fileInput=document.getElementById('file'),layersEl=document.getElementById('layers'),
+        frameInput=document.getElementById('frameInput'),frameRange=document.getElementById('frameRange'),
+        rangeMin=document.getElementById('rangeMin'),rangeCur=document.getElementById('rangeCur'),rangeMax=document.getElementById('rangeMax'),
+        infoDim=document.getElementById('infoDim'),infoZoom=document.getElementById('infoZoom'),infoWarn=document.getElementById('infoWarn'),
+        btnFit=document.getElementById('btnFit'),btn100=document.getElementById('btn100'),btnBG=document.getElementById('btnBG'),
+        footer=document.getElementById('footer');
 
-  // ==== State ====
-  // frames: id -> { base, layers[], userSorted:boolean }
-  // entry: { name, kind, displayName?, combinedIndex?, img, url, w, h, visible, opacity }
-  let frames = new Map();
-  let frameList = [];
-  let currentFrameId = null;
+  let frames=new Map(),frameList=[],currentFrameId=null;
+  const LS_KEY='frameviewer.opacityDefaults.v1';
+  let opacityDefaults=new Map();
+  try{const raw=localStorage.getItem(LS_KEY);if(raw){opacityDefaults=new Map(Object.entries(JSON.parse(raw)));for(const[k,v]of opacityDefaults)opacityDefaults.set(k,Number(v));}}catch{}
+  const save=()=>{localStorage.setItem(LS_KEY,JSON.stringify(Object.fromEntries(opacityDefaults)));}
+  let zoom=1,panX=0,panY=0,bgToggle=0,baseW=0,baseH=0;
 
-  // Persistent global opacity defaults (layerKey -> 0..1)
-  // layerKey is the logical name: 'BaseColor', 'Depth', 'Combined 01', 'Combined 02', etc.
-  const LS_KEY = 'frameviewer.opacityDefaults.v1';
-  let opacityDefaults = new Map();
-  try{
-    const raw = localStorage.getItem(LS_KEY);
-    if(raw){ const obj = JSON.parse(raw); opacityDefaults = new Map(Object.entries(obj)); for(const [k,v] of opacityDefaults) opacityDefaults.set(k, Number(v)); }
-  }catch{}
+  const PASS_ORDER=['BaseColor','Depth','Metallic','Normal','Reflection','Roughness'];
+  const pad2=n=>String(n).padStart(2,'0');
+  const trimLower=s=>s.replace(/\s+/g,'').toLowerCase();
+  const canonical=p=>({basecolor:'BaseColor',albedo:'BaseColor',diffuse:'BaseColor',depth:'Depth',metallic:'Metallic',normal:'Normal',reflection:'Reflection',roughness:'Roughness'}[trimLower(p)]||p.charAt(0).toUpperCase()+p.slice(1));
+  const isHigh=part=>['high','beauty'].includes(trimLower(part));
+  const layerKey=L=>L.kind==='Combined'?(L.displayName||`Combined ${pad2(L.combinedIndex||1)}`):L.name;
 
-  function saveOpacityDefaults(){
-    try{
-      const obj = Object.fromEntries(opacityDefaults.entries());
-      localStorage.setItem(LS_KEY, JSON.stringify(obj));
-    }catch{}
+  function parseName(n){const b=n.replace(/\.[^.]+$/,'');if(/^\d+$/.test(b))return{frameId:b,kind:'Combined',pass:'Combined'};
+    const m=b.match(/^([A-Za-z]+)[-_ ](\d+)$/);if(m){const p=canonical(m[1]);if(isHigh(p))return{frameId:m[2],kind:'High',pass:'High'};return{frameId:m[2],kind:'Layer',pass:p}};return{frameId:'unknown',kind:'Layer',pass:canonical(b)};}
+
+  function applyDefaults(fr){for(const L of fr.layers){const k=layerKey(L);if(opacityDefaults.has(k)){L.opacity=+opacityDefaults.get(k);if(L.opacity>0)L.visible=true;}}}
+
+  function setCanvasSize(){cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHeight*devicePixelRatio;ctx.setTransform(1,0,0,1,0,0);ctx.scale(devicePixelRatio,devicePixelRatio);draw()}
+  const fitZoom=()=>Math.min(cv.clientWidth/baseW,cv.clientHeight/baseH);
+  function center(){panX=(cv.clientWidth-baseW*zoom)/2;panY=(cv.clientHeight-baseH*zoom)/2}
+  function drawBG(){ctx.fillStyle='#0a0c10';ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight)}
+  function draw(){ctx.setTransform(1,0,0,1,0,0);drawBG();if(!currentFrameId)return;const fr=frames.get(currentFrameId);ctx.setTransform(1,0,0,1,panX,panY);ctx.scale(zoom,zoom);if(fr.base){ctx.globalAlpha=1;ctx.drawImage(fr.base.img,0,0,fr.base.w,fr.base.h,0,0,baseW,baseH);}for(const L of fr.layers){if(!L.visible||L.opacity<=0)continue;ctx.globalAlpha=L.opacity;ctx.drawImage(L.img,0,0,L.w,L.h,0,0,baseW,baseH);}ctx.globalAlpha=1}
+  function updateInfo(){infoDim.textContent=baseW&&baseH?`${baseW}×${baseH}`:'–';infoZoom.textContent=`${Math.round(zoom*100)}%`}
+
+  function renderLayersUI(){layersEl.innerHTML='';const fr=frames.get(currentFrameId);if(!fr)return;
+    if(fr.base){const r=document.createElement('div');r.className='layer';r.innerHTML='<div></div><div></div><div class="name">High (Base)</div><span class="chip">'+fr.base.w+'×'+fr.base.h+'</span><div></div>';layersEl.appendChild(r)}
+    fr.layers.forEach((L,i)=>{const row=document.createElement('div');row.className='layer'+(L.visible?'':' off');row.dataset.index=i;row.draggable=true;
+      row.addEventListener('dragstart',e=>{if(e.target.closest('input')){e.preventDefault();return;}row.classList.add('dragging');e.dataTransfer.setData('text/plain',i)});
+      row.addEventListener('dragend',()=>row.classList.remove('dragging'));
+      row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('drop-target')});
+      row.addEventListener('dragleave',()=>row.classList.remove('drop-target'));
+      row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('drop-target');const from=+e.dataTransfer.getData('text/plain'),to=+row.dataset.index;if(from===to)return;const mv=fr.layers.splice(from,1)[0];fr.layers.splice(to,0,mv);renderLayersUI();draw()});
+      const cb=document.createElement('input');cb.type='checkbox';cb.checked=L.visible;cb.onchange=()=>{L.visible=cb.checked;row.classList.toggle('off',!L.visible);draw()};
+      const name=document.createElement('div');name.className='name';name.textContent=layerKey(L);
+      const chip=document.createElement('span');chip.className='chip';chip.textContent=`${L.w}×${L.h}`;
+      const slider=document.createElement('input');slider.type='range';slider.min=0;slider.max=100;slider.value=Math.round((L.opacity??0)*100);
+      slider.oninput=()=>{L.opacity=slider.value/100;if(L.opacity>0&&!L.visible){L.visible=true;cb.checked=true;row.classList.remove('off')}opacityDefaults.set(layerKey(L),L.opacity);save();draw()};
+      [slider,cb].forEach(el=>{el.addEventListener('mousedown',ev=>ev.stopPropagation());el.setAttribute('draggable','false')});
+      const h=document.createElement('div');h.textContent='⋮⋮';
+      row.append(h,cb,name,chip,slider);layersEl.appendChild(row)});
   }
 
-  // view
-  let zoom = 1, panX = 0, panY = 0;
-  let bgToggle = 0;
-  let baseW = 0, baseH = 0;
+  function setCurrentFrame(fid){if(!frames.has(fid))return;currentFrameId=fid;frameInput.value=fid;const fr=frames.get(fid);applyDefaults(fr);baseW=fr.base?fr.base.w:fr.layers[0].w;baseH=fr.base?fr.base.h:fr.layers[0].h;zoom=fitZoom();center();renderLayersUI();draw();updateInfo();rangeCur.textContent=fid}
 
-  const PASS_ORDER = ['BaseColor','Depth','Metallic','Normal','Reflection','Roughness'];
-  const pad2 = n => String(n).padStart(2,'0');
+  async function handleFiles(files){for(const f of [...files]){if(!f.type.startsWith('image/'))continue;const url=URL.createObjectURL(f),img=new Image();await new Promise(r=>{img.onload=r;img.src=url});const {frameId,kind,pass}=parseName(f.name);if(!frames.has(frameId))frames.set(frameId,{base:null,layers:[]});const fr=frames.get(frameId);
+    if(kind==='High'){fr.base={img,w:img.naturalWidth,h:img.naturalHeight}}
+    else if(kind==='Combined'){const n=fr.layers.filter(x=>x.kind==='Combined').length+1;const key=`Combined ${pad2(n)}`;let op=opacityDefaults.has(key)?opacityDefaults.get(key):(n===1?1:0);if(!opacityDefaults.has(key)&&n===1){opacityDefaults.set(key,1);save()}fr.layers.push({kind:'Combined',displayName:key,combinedIndex:n,img,w:img.naturalWidth,h:img.naturalHeight,visible:true,opacity:op})}
+    else{const key=pass;const op=opacityDefaults.has(key)?opacityDefaults.get(key):0;fr.layers.push({name:pass,kind:'Layer',img,w:img.naturalWidth,h:img.naturalHeight,visible:true,opacity:op})}}
+    frameList=[...frames.keys()].sort((a,b)=>+a-+b);frameRange.max=frameList.length-1;rangeMin.textContent=frameList[0];rangeMax.textContent=frameList[frameList.length-1];if(!currentFrameId)setCurrentFrame(frameList[0]);else setCurrentFrame(currentFrameId)}
 
-  // ==== Helpers ====
-  const trimLower = s => String(s).replace(/\s+/g,'').toLowerCase();
-  function isHighName(part){ const s = trimLower(part); return s==='high' || s==='beauty'; }
-  function canonicalPass(p){
-    const s = trimLower(p);
-    const map = {
-      high:'High', beauty:'High',
-      basecolor:'BaseColor', base_color:'BaseColor', albedo:'BaseColor', diffuse:'BaseColor',
-      depth:'Depth', z:'Depth',
-      metallic:'Metallic', metalness:'Metallic',
-      normal:'Normal',
-      reflection:'Reflection', specular:'Reflection',
-      roughness:'Roughness', glossiness:'Roughness'
-    };
-    return map[s] || (s.charAt(0).toUpperCase()+s.slice(1));
-  }
-  function parseName(name){
-    const base = name.replace(/\.[^.]+$/,'');
-    const mNum = base.match(/^(\d+)$/);
-    if(mNum){ return {frameId:mNum[1], kind:'Combined', pass:'Combined'}; }
-    const mPF = base.match(/^([A-Za-z ]+)[-_ ](\d+)$/);
-    if(mPF){
-      const pass = canonicalPass(mPF[1]);
-      if(isHighName(pass)) return {frameId:mPF[2], kind:'High', pass:'High'};
-      return {frameId:mPF[2], kind:'Layer', pass};
-    }
-    const mFP = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
-    if(mFP){
-      const pass = canonicalPass(mFP[2]);
-      if(isHighName(pass)) return {frameId:mFP[1], kind:'High', pass:'High'};
-      return {frameId:mFP[1], kind:'Layer', pass};
-    }
-    if(isHighName(base)) return {frameId:'unknown', kind:'High', pass:'High'};
-    const mTail = base.match(/(\d+)$/);
-    if(mTail){
-      return {frameId:mTail[1], kind:'Layer', pass:canonicalPass(base.slice(0, mTail.index))};
-    }
-    return {frameId:'unknown', kind:'Layer', pass:canonicalPass(base)};
-  }
-  const pad = (n,len)=> String(n).padStart(len,'0');
-
-  function defaultSort(fr){
-    fr.layers.sort((a,b)=>{
-      if(a.kind==='Combined' && b.kind!=='Combined') return -1;
-      if(b.kind==='Combined' && a.kind!=='Combined') return 1;
-      if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
-      return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
-    });
-  }
-
-  function layerKey(L){
-    return (L.kind==='Combined')
-      ? (L.displayName || `Combined ${pad2(L.combinedIndex||1)}`)
-      : L.name;
-  }
-
-  // Apply global opacity defaults to a frame's layers (order-independent)
-  function applyOpacityDefaults(fr){
-    for(const L of fr.layers){
-      const key = layerKey(L);
-      if(opacityDefaults.has(key)){
-        const v = Number(opacityDefaults.get(key)) || 0;
-        L.opacity = v;
-        if(v>0 && !L.visible) L.visible = true;
-      }
-    }
-  }
-
-  // ==== Canvas ====
-  function setCanvasSize(){
-    cv.width  = cv.clientWidth  * devicePixelRatio;
-    cv.height = cv.clientHeight * devicePixelRatio;
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.scale(devicePixelRatio, devicePixelRatio);
-    draw();
-  }
-  window.addEventListener('resize', setCanvasSize);
-
-  function fitZoom(){
-    if(!currentFrameId) return 1;
-    const vw = cv.clientWidth, vh = cv.clientHeight;
-    return Math.min(vw / baseW, vh / baseH);
-  }
-  function center(){
-    const vw = cv.clientWidth, vh = cv.clientHeight;
-    panX = (vw - baseW*zoom)/2;
-    panY = (vh - baseH*zoom)/2;
-  }
-  function drawBG(){
-    if(bgToggle===0){ ctx.fillStyle = '#0a0c10'; ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight); return; }
-    const s=16,w=cv.clientWidth,h=cv.clientHeight;
-    for(let y=0;y<h;y+=s){ for(let x=0;x<w;x+=s){
-      ctx.fillStyle=((x+y)/s)%2?'#0e1218':'#0b0f15';
-      ctx.fillRect(x,y,s,s);
-    }}
-  }
-  function draw(){
-    ctx.setTransform(1,0,0,1,0,0);
-    drawBG();
-    if(!currentFrameId) return;
-    const fr = frames.get(currentFrameId);
-    if(!fr) return;
-
-    ctx.imageSmoothingEnabled = false;
-    ctx.setTransform(1,0,0,1,panX,panY);
-    ctx.scale(zoom, zoom);
-
-    if(fr.base){
-      const B = fr.base; ctx.globalAlpha = 1;
-      if(B.w!==baseW || B.h!==baseH) ctx.drawImage(B.img,0,0,B.w,B.h,0,0,baseW,baseH);
-      else ctx.drawImage(B.img,0,0);
-    }
-    for(const L of fr.layers){
-      if(!L.visible || L.opacity<=0) continue;
-      ctx.globalAlpha = Math.max(0, Math.min(1, L.opacity));
-      if(L.w!==baseW || L.h!==baseH) ctx.drawImage(L.img,0,0,L.w,L.h,0,0,baseW,baseH);
-      else ctx.drawImage(L.img,0,0);
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  function updateInfo(){
-    infoDim.textContent = baseW && baseH ? `${baseW}×${baseH}` : '–';
-    infoZoom.textContent = `${Math.round(zoom*100)}%`;
-  }
-  function checkDims(){
-    if(!currentFrameId) return;
-    const fr = frames.get(currentFrameId); if(!fr) return;
-    const dims = [];
-    if(fr.base) dims.push([fr.base.w, fr.base.h]);
-    for(const L of fr.layers) dims.push([L.w,L.h]);
-    if(dims.length===0) return;
-    baseW = fr.base ? fr.base.w : dims[0][0];
-    baseH = fr.base ? fr.base.h : dims[0][1];
-    const anyMismatch = dims.some(([w,h])=> w!==baseW || h!==baseH);
-    infoWarn.textContent = anyMismatch ? 'Different sizes. Scaling to base.' : '';
-    infoWarn.className = anyMismatch ? 'btn warn' : 'btn muted';
-  }
-
-  // ==== UI (preserves order; opacity is key-based & persistent) ====
-  function renderLayersUI(){
-    layersEl.innerHTML = '';
-    if(!currentFrameId){ footer.textContent = 'No images'; return; }
-    const fr = frames.get(currentFrameId); if(!fr) return;
-
-    if(fr.base){
-      const baseRow = document.createElement('div'); baseRow.className='layer';
-      baseRow.style.opacity = .9;
-      baseRow.innerHTML = `
-        <div class="handle"> </div>
-        <div class="cbwrap"> </div>
-        <div class="name">High (Base)</div>
-        <span class="chip">${fr.base.w}×${fr.base.h}</span>
-        <div class="slider"></div>
-      `;
-      layersEl.appendChild(baseRow);
-    }
-
-    fr.layers.forEach((L, idx)=>{
-      const row = document.createElement('div'); row.className='layer' + (L.visible ? '' : ' off');
-      row.dataset.index = idx;
-
-      const handle = document.createElement('div'); handle.className='handle'; handle.textContent = '⋮⋮';
-      handle.setAttribute('draggable','true');
-
-      handle.addEventListener('dragstart', e=>{
-        row.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', String(idx));
-        e.dataTransfer.effectAllowed = 'move';
-      });
-      handle.addEventListener('dragend', ()=> row.classList.remove('dragging'));
-
-      row.addEventListener('dragover', e=>{ e.preventDefault(); row.classList.add('drop-target'); e.dataTransfer.dropEffect='move'; });
-      row.addEventListener('dragleave', ()=> row.classList.remove('drop-target'));
-      row.addEventListener('drop', e=>{
-        e.preventDefault(); row.classList.remove('drop-target');
-        const from = Number(e.dataTransfer.getData('text/plain'));
-        const to = Number(row.dataset.index);
-        if(isNaN(from) || isNaN(to) || from===to) return;
-        const moved = fr.layers.splice(from,1)[0];
-        fr.layers.splice(to,0,moved);
-        fr.userSorted = true;
-        renderLayersUI();
-        draw();
-      });
-
-      const cbWrap = document.createElement('div'); cbWrap.className='cbwrap';
-      const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
-      cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
-      cbWrap.appendChild(cb);
-
-      const name = document.createElement('div'); name.className='name';
-      name.textContent = layerKey(L); // shows logical key (e.g., "Combined 01")
-      name.title = name.textContent;
-
-      const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
-
-      const sliderWrap = document.createElement('div'); sliderWrap.className='slider';
-      const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100;
-      slider.value = Math.round((L.opacity??0)*100);
-
-      [slider, cb].forEach(el=>{
-        el.addEventListener('mousedown', ev=> ev.stopPropagation());
-        el.addEventListener('touchstart', ev=> ev.stopPropagation(), {passive:true});
-        el.setAttribute('draggable','false');
-      });
-
-      slider.addEventListener('input', ()=>{
-        const v = slider.value/100;
-        L.opacity = v;
-        if(v>0 && !L.visible){ L.visible = true; row.classList.remove('off'); cb.checked = true; }
-        const key = layerKey(L);
-        opacityDefaults.set(key, v);   // persist by logical key
-        saveOpacityDefaults();
-        draw();
-      });
-
-      row.append(handle, cbWrap, name, chip, sliderWrap.appendChild(slider) ? sliderWrap : sliderWrap);
-      layersEl.appendChild(row);
-    });
-
-    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder. Opacity persists across frames & reorders.';
-  }
-
-  // ==== Frames / Timeline ====
-  let zoom = 1, panX = 0, panY = 0, bgToggle = 0, baseW = 0, baseH = 0;
-
-  function updateFrameList(){
-    frameList = Array.from(frames.keys()).sort((a,b)=> Number(a) - Number(b));
-    if(frameList.length){
-      frameRange.min = 0;
-      frameRange.max = frameList.length - 1;
-      const idx = Math.max(0, frameList.indexOf(currentFrameId ?? frameList[0]));
-      frameRange.value = idx;
-      rangeMin.textContent = frameList[0];
-      rangeMax.textContent = frameList[frameList.length - 1];
-      rangeCur.textContent = frameList[idx];
-    } else {
-      frameRange.min = frameRange.max = frameRange.value = 0;
-      rangeMin.textContent = rangeMax.textContent = rangeCur.textContent = '—';
-    }
-  }
-
-  function setCurrentFrame(fid){
-    if(!frames.has(fid)) return;
-    currentFrameId = fid;
-    frameInput.value = fid;
-
-    const fr = frames.get(fid);
-    if(fr && !fr.userSorted){ defaultSort(fr); }
-    applyOpacityDefaults(fr); // order-agnostic, uses logical keys
-
-    updateFrameList();
-    checkDims();
-    zoom = fitZoom();
-    center();
-    renderLayersUI();
-    draw();
-  }
-
-  // ==== File handling ====
-  async function handleFiles(files){
-    const sorted = [...files].sort((a,b)=> a.name.localeCompare(b.name));
-
-    for(const f of sorted){
-      if(!f.type.startsWith('image/')) continue;
-      const url = URL.createObjectURL(f);
-      const img = new Image();
-      await new Promise(res=>{ img.onload=res; img.src=url; });
-      const {frameId, kind, pass} = parseName(f.name);
-
-      if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[], userSorted:false}); }
-      const fr = frames.get(frameId);
-
-      if(kind==='High'){
-        fr.base = { name:'High', kind:'High', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:1 };
-      } else if(kind==='Combined'){
-        const existingCombined = fr.layers.filter(x=>x.kind==='Combined').length;
-        const idx = existingCombined + 1;
-        const displayName = `Combined ${pad2(idx)}`;
-
-        // default opacity: Combined 01 -> 1.0 unless overridden in storage
-        let op = opacityDefaults.has(displayName) ? Number(opacityDefaults.get(displayName)) : (idx===1 ? 1 : 0);
-        if(!opacityDefaults.has(displayName) && idx===1){ opacityDefaults.set(displayName, 1); saveOpacityDefaults(); }
-
-        fr.layers.push({ name:'Combined', displayName, kind:'Combined', combinedIndex: idx, img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
-      } else {
-        const key = pass;
-        const op = opacityDefaults.has(key) ? Number(opacityDefaults.get(key)) : 0;
-        fr.layers.push({ name:pass, kind:'Layer', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
-      }
-    }
-
-    // Sort frames not yet touched by user; then apply stored opacities
-    for(const [fid, fr] of frames.entries()){
-      if(!fr.userSorted){ defaultSort(fr); }
-      applyOpacityDefaults(fr);
-    }
-
-    updateFrameList();
-    if(!currentFrameId && frameList.length){ setCurrentFrame(frameList[0]); }
-    else if(currentFrameId){ setCurrentFrame(currentFrameId); }
-    updateInfo();
-  }
-
-  // Upload input
-  fileInput.addEventListener('change', e=> handleFiles(e.target.files));
-
-  // Drag & drop on left panel (layers list) and canvas
-  ['dragenter','dragover'].forEach(ev=> [layersEl, cv].forEach(el => el.addEventListener(ev, e=>{e.preventDefault();})));
-  ['dragleave','drop'].forEach(ev=> [layersEl, cv].forEach(el => el.addEventListener(ev, e=>{e.preventDefault();})));
-  layersEl.addEventListener('drop', e=> handleFiles(e.dataTransfer.files));
-  cv.addEventListener('drop', e=> handleFiles(e.dataTransfer.files));
-
-  // ==== Canvas interactions ====
-  let dragging=false,lastX=0,lastY=0;
-  cv.addEventListener('mousedown', e=>{dragging=true; lastX=e.clientX; lastY=e.clientY;});
-  window.addEventListener('mouseup', ()=> dragging=false);
-  window.addEventListener('mousemove', e=>{
-    if(!dragging) return;
-    panX += (e.clientX-lastX); panY += (e.clientY-lastY);
-    lastX=e.clientX; lastY=e.clientY; draw();
-  });
-  cv.addEventListener('wheel', e=>{
-    if(!currentFrameId) return; e.preventDefault();
-    const mx=e.offsetX,my=e.offsetY, prev=zoom, d=Math.sign(e.deltaY)*-0.1;
-    zoom = Math.max(0.05, Math.min(32, zoom*(1+d)));
-    const wx=(mx-panX)/prev, wy=(my-panY)/prev;
-    panX = mx - wx*zoom; panY = my - wy*zoom; draw(); updateInfo();
-  }, {passive:false});
-
-  // ==== Header controls ====
-  btnFit.addEventListener('click', ()=>{ zoom=fitZoom(); center(); draw(); updateInfo(); });
-  btn100.addEventListener('click', ()=>{ zoom=1; center(); draw(); updateInfo(); });
-  btnBG.addEventListener('click', ()=>{ bgToggle=(bgToggle+1)%2; draw(); });
-
-  // Frame text input (press Enter to jump)
-  frameInput.addEventListener('keydown', (e)=>{
-    if(e.key==='Enter'){
-      const val = frameInput.value.trim();
-      if(frames.has(val)) setCurrentFrame(val);
-      else {
-        const n = Number(val);
-        if(!isNaN(n) && frameList.length){
-          const width = frameList[0].length;
-          const candidate = pad(n, width);
-          if(frames.has(candidate)) setCurrentFrame(candidate);
-        }
-      }
-    }
-  });
-
-  // Timeline slider
-  frameRange.addEventListener('input', ()=>{
-    if(!frameList.length) return;
-    const idx = Number(frameRange.value);
-    const fid = frameList[Math.max(0, Math.min(idx, frameList.length-1))];
-    rangeCur.textContent = fid;
-    setCurrentFrame(fid);
-  });
-
-  // init
-  const ro = new ResizeObserver(setCanvasSize); ro.observe(cv);
-  setCanvasSize();
+  fileInput.onchange=e=>handleFiles(e.target.files);
+  cv.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};cv.ondragover=e=>e.preventDefault();
+  layersEl.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};layersEl.ondragover=e=>e.preventDefault();
+  btnFit.onclick=()=>{zoom=fitZoom();center();draw();updateInfo()};
+  btn100.onclick=()=>{zoom=1;center();draw();updateInfo()};
+  btnBG.onclick=()=>{bgToggle^=1;draw()};
+  frameRange.oninput=()=>{const fid=frameList[+frameRange.value];setCurrentFrame(fid)};
+  frameInput.onkeydown=e=>{if(e.key==='Enter'&&frames.has(frameInput.value))setCurrentFrame(frameInput.value)};
+  const ro=new ResizeObserver(setCanvasSize);ro.observe(cv);setCanvasSize();
 })();
 </script>
 </body>
