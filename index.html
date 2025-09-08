@@ -3,17 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frame Viewer • Full Version</title>
+  <title>Frame Viewer • Global Order + Safe Sliders</title>
   <style>
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
       --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
-      --sliderw: clamp(100px, 35%, 130px);
+      --sliderw: clamp(110px, 36%, 150px);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Inter,Arial,sans-serif}
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
+
     header{display:grid; grid-template-columns:auto 1fr auto auto auto auto; gap:.5rem; align-items:center; padding:.5rem .75rem; background:#0f1317; border-bottom:1px solid var(--line)}
     header h1{font-size:14px; margin:0; opacity:.95}
     .btn{border:1px solid var(--line); background:#12161c; color:#fff; padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
@@ -21,34 +22,54 @@
     .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem; padding:.4rem .55rem; font-size:12px; width:90px}
     .range-header{display:flex; align-items:center; gap:.5rem}
     .range-header input[type=range]{width:clamp(160px,28vw,320px)}
-    .main{display:grid; grid-template-columns:400px 1fr; height:calc(100vh - 50px)}
-    .left{border-right:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; justify-content:space-between}
-    .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto}
+
+    .main{display:grid; grid-template-columns:420px 1fr; height:calc(100vh - 50px)}
+    .left{border-right:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; justify-content:space-between; min-width:0}
+    .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; min-height:0}
     .right{position:relative}
-    .layer{display:grid; grid-template-columns:20px 24px minmax(120px,1fr) max-content var(--sliderw); align-items:center; gap:.4rem; padding:.4rem; border-radius:.5rem; background:#0e1218; cursor:grab}
+
+    .layer{
+      display:grid;
+      grid-template-columns:22px 24px minmax(120px,1fr) max-content var(--sliderw);
+      align-items:center; gap:.45rem; padding:.45rem;
+      border-radius:.5rem; background:#0e1218; min-width:0;
+      border:1px solid transparent;
+    }
     .layer.off{opacity:.45}
-    .layer input, .layer .slider input{cursor:default}
-    .handle{font-size:14px; opacity:.8}
-    .dragging{opacity:.6; border:1px solid #2b3646}
-    .drop-target{outline:2px dashed #2b3646; outline-offset:-3px}
+    .handle{cursor:grab; user-select:none; font-size:14px; line-height:1; text-align:center; opacity:.8}
+    .layer.dragging{opacity:.6; border-color:#2b3646}
+    .layer.drop-target{outline:2px dashed #2b3646; outline-offset:-3px}
+
+    .cbwrap{text-align:center}
     .cbwrap input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent)}
-    .name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
     .chip{font-size:11px; color:#cbd5e1; background:#0a0f15; padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem}
-    .slider{display:flex; align-items:center; gap:.4rem}
+    .slider{display:flex; align-items:center; gap:.4rem; min-width:0}
     .slider input[type=range]{width:100%}
-    .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem}
+
+    .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
     .toolbar .btn{background:rgba(18,22,28,.75)}
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
     .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:#cbd5e1; background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem}
+
     .naming{margin:.5rem; background:#0f1317; border:1px solid #1a2230; border-radius:.5rem; padding:.5rem; font-size:12px; line-height:1.4}
     .naming h4{margin:.1rem 0 .3rem 0; font-size:12px; color:#e5e7eb}
     .naming code{background:#0f1720; border:1px solid #202b3a; padding:.05rem .3rem; border-radius:.35rem}
+
+    @media (max-width: 1000px){
+      .main{grid-template-columns:1fr}
+      .left{position:absolute; bottom:0; height:50%}
+      .right{height:50%}
+      :root{--sliderw:clamp(90px, 42%, 130px);}
+    }
   </style>
 </head>
 <body>
 <div class="app">
+
   <header>
     <h1>Frame Viewer</h1>
+
     <div class="range-header">
       <label for="frameRange">Timeline</label>
       <input id="frameRange" type="range" min="0" max="0" step="1" value="0">
@@ -56,29 +77,33 @@
       <span id="rangeCur" class="muted">—</span>
       <span id="rangeMax" class="muted">—</span>
     </div>
+
     <div class="field">
       <label for="frameInput">Frame</label>
       <input id="frameInput" class="input" placeholder="0001" />
     </div>
+
     <button class="btn" id="btnFit">Fit</button>
     <button class="btn" id="btn100">100%</button>
     <button class="btn" id="btnBG">BG</button>
     <label class="btn" for="file">Upload</label>
     <input id="file" type="file" accept="image/*" multiple hidden>
   </header>
+
   <div class="main">
     <aside class="left">
       <div class="layers" id="layers"></div>
       <div class="naming">
         <h4>Naming rules</h4>
         <ul style="margin:0; padding-left:16px;">
-          <li>Numeric-only files → <em>Combined 01, 02…</em> (01 ON at 100%).</li>
-          <li>Pass format: <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code>.</li>
-          <li><code>High</code> (optional) drawn as base, no slider.</li>
-          <li>Drag rows to reorder; order is preserved.</li>
+          <li>Numeric-only files become <em>Combined 01, 02…</em> (01 is ON at 100% by default).</li>
+          <li>Pass names (case-insensitive): <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code>.</li>
+          <li><code>High</code> or <code>High_#</code> (optional) is the base (no slider).</li>
+          <li>Drag the <b>⋮⋮</b> handle to reorder; order is kept across frames.</li>
         </ul>
       </div>
     </aside>
+
     <section class="right">
       <div class="toolbar">
         <div class="btn muted" id="infoDim">–</div>
@@ -93,75 +118,414 @@
 
 <script>
 (()=>{
-  const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),
-        fileInput=document.getElementById('file'),layersEl=document.getElementById('layers'),
-        frameInput=document.getElementById('frameInput'),frameRange=document.getElementById('frameRange'),
-        rangeMin=document.getElementById('rangeMin'),rangeCur=document.getElementById('rangeCur'),rangeMax=document.getElementById('rangeMax'),
-        infoDim=document.getElementById('infoDim'),infoZoom=document.getElementById('infoZoom'),infoWarn=document.getElementById('infoWarn'),
-        btnFit=document.getElementById('btnFit'),btn100=document.getElementById('btn100'),btnBG=document.getElementById('btnBG'),
-        footer=document.getElementById('footer');
+  // --- DOM refs ---
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const fileInput=document.getElementById('file'), layersEl=document.getElementById('layers');
+  const frameInput=document.getElementById('frameInput'), frameRange=document.getElementById('frameRange');
+  const rangeMin=document.getElementById('rangeMin'), rangeCur=document.getElementById('rangeCur'), rangeMax=document.getElementById('rangeMax');
+  const infoDim=document.getElementById('infoDim'), infoZoom=document.getElementById('infoZoom'), infoWarn=document.getElementById('infoWarn');
+  const btnFit=document.getElementById('btnFit'), btn100=document.getElementById('btn100'), btnBG=document.getElementById('btnBG');
+  const footer=document.getElementById('footer');
 
-  let frames=new Map(),frameList=[],currentFrameId=null;
-  const LS_KEY='frameviewer.opacityDefaults.v1';
-  let opacityDefaults=new Map();
-  try{const raw=localStorage.getItem(LS_KEY);if(raw){opacityDefaults=new Map(Object.entries(JSON.parse(raw)));for(const[k,v]of opacityDefaults)opacityDefaults.set(k,Number(v));}}catch{}
-  const save=()=>{localStorage.setItem(LS_KEY,JSON.stringify(Object.fromEntries(opacityDefaults)));}
-  let zoom=1,panX=0,panY=0,bgToggle=0,baseW=0,baseH=0;
+  // --- State ---
+  // frames: Map<frameId, { base:entry|null, layers:entry[], userSorted:boolean }>
+  // entry: { kind:'High'|'Combined'|'Layer', name?, displayName?, combinedIndex?, img,w,h, visible, opacity }
+  let frames = new Map();
+  let frameList = [];
+  let currentFrameId = null;
 
-  const PASS_ORDER=['BaseColor','Depth','Metallic','Normal','Reflection','Roughness'];
-  const pad2=n=>String(n).padStart(2,'0');
-  const trimLower=s=>s.replace(/\s+/g,'').toLowerCase();
-  const canonical=p=>({basecolor:'BaseColor',albedo:'BaseColor',diffuse:'BaseColor',depth:'Depth',metallic:'Metallic',normal:'Normal',reflection:'Reflection',roughness:'Roughness'}[trimLower(p)]||p.charAt(0).toUpperCase()+p.slice(1));
-  const isHigh=part=>['high','beauty'].includes(trimLower(part));
-  const layerKey=L=>L.kind==='Combined'?(L.displayName||`Combined ${pad2(L.combinedIndex||1)}`):L.name;
+  // persistent opacities per logical key
+  const LS_OPA_KEY = 'frameviewer.opacityDefaults.v1';
+  // persistent global order (array of keys)
+  const LS_ORD_KEY = 'frameviewer.layerOrder.v1';
 
-  function parseName(n){const b=n.replace(/\.[^.]+$/,'');if(/^\d+$/.test(b))return{frameId:b,kind:'Combined',pass:'Combined'};
-    const m=b.match(/^([A-Za-z]+)[-_ ](\d+)$/);if(m){const p=canonical(m[1]);if(isHigh(p))return{frameId:m[2],kind:'High',pass:'High'};return{frameId:m[2],kind:'Layer',pass:p}};return{frameId:'unknown',kind:'Layer',pass:canonical(b)};}
+  let opacityDefaults = new Map();
+  let globalOrder = []; // e.g., ["Combined 01","BaseColor","Depth",...]
 
-  function applyDefaults(fr){for(const L of fr.layers){const k=layerKey(L);if(opacityDefaults.has(k)){L.opacity=+opacityDefaults.get(k);if(L.opacity>0)L.visible=true;}}}
+  try{
+    const raw = localStorage.getItem(LS_OPA_KEY);
+    if(raw){ opacityDefaults = new Map(Object.entries(JSON.parse(raw)).map(([k,v])=>[k,Number(v)]) ); }
+  }catch{}
+  try{
+    const raw = localStorage.getItem(LS_ORD_KEY);
+    if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr)) globalOrder = arr.map(String); }
+  }catch{}
 
-  function setCanvasSize(){cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHeight*devicePixelRatio;ctx.setTransform(1,0,0,1,0,0);ctx.scale(devicePixelRatio,devicePixelRatio);draw()}
-  const fitZoom=()=>Math.min(cv.clientWidth/baseW,cv.clientHeight/baseH);
-  function center(){panX=(cv.clientWidth-baseW*zoom)/2;panY=(cv.clientHeight-baseH*zoom)/2}
-  function drawBG(){ctx.fillStyle='#0a0c10';ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight)}
-  function draw(){ctx.setTransform(1,0,0,1,0,0);drawBG();if(!currentFrameId)return;const fr=frames.get(currentFrameId);ctx.setTransform(1,0,0,1,panX,panY);ctx.scale(zoom,zoom);if(fr.base){ctx.globalAlpha=1;ctx.drawImage(fr.base.img,0,0,fr.base.w,fr.base.h,0,0,baseW,baseH);}for(const L of fr.layers){if(!L.visible||L.opacity<=0)continue;ctx.globalAlpha=L.opacity;ctx.drawImage(L.img,0,0,L.w,L.h,0,0,baseW,baseH);}ctx.globalAlpha=1}
-  function updateInfo(){infoDim.textContent=baseW&&baseH?`${baseW}×${baseH}`:'–';infoZoom.textContent=`${Math.round(zoom*100)}%`}
+  const saveOpacity = ()=> localStorage.setItem(LS_OPA_KEY, JSON.stringify(Object.fromEntries(opacityDefaults)));
+  const saveOrder   = ()=> localStorage.setItem(LS_ORD_KEY, JSON.stringify(globalOrder));
 
-  function renderLayersUI(){layersEl.innerHTML='';const fr=frames.get(currentFrameId);if(!fr)return;
-    if(fr.base){const r=document.createElement('div');r.className='layer';r.innerHTML='<div></div><div></div><div class="name">High (Base)</div><span class="chip">'+fr.base.w+'×'+fr.base.h+'</span><div></div>';layersEl.appendChild(r)}
-    fr.layers.forEach((L,i)=>{const row=document.createElement('div');row.className='layer'+(L.visible?'':' off');row.dataset.index=i;row.draggable=true;
-      row.addEventListener('dragstart',e=>{if(e.target.closest('input')){e.preventDefault();return;}row.classList.add('dragging');e.dataTransfer.setData('text/plain',i)});
-      row.addEventListener('dragend',()=>row.classList.remove('dragging'));
-      row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('drop-target')});
-      row.addEventListener('dragleave',()=>row.classList.remove('drop-target'));
-      row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('drop-target');const from=+e.dataTransfer.getData('text/plain'),to=+row.dataset.index;if(from===to)return;const mv=fr.layers.splice(from,1)[0];fr.layers.splice(to,0,mv);renderLayersUI();draw()});
-      const cb=document.createElement('input');cb.type='checkbox';cb.checked=L.visible;cb.onchange=()=>{L.visible=cb.checked;row.classList.toggle('off',!L.visible);draw()};
-      const name=document.createElement('div');name.className='name';name.textContent=layerKey(L);
-      const chip=document.createElement('span');chip.className='chip';chip.textContent=`${L.w}×${L.h}`;
-      const slider=document.createElement('input');slider.type='range';slider.min=0;slider.max=100;slider.value=Math.round((L.opacity??0)*100);
-      slider.oninput=()=>{L.opacity=slider.value/100;if(L.opacity>0&&!L.visible){L.visible=true;cb.checked=true;row.classList.remove('off')}opacityDefaults.set(layerKey(L),L.opacity);save();draw()};
-      [slider,cb].forEach(el=>{el.addEventListener('mousedown',ev=>ev.stopPropagation());el.setAttribute('draggable','false')});
-      const h=document.createElement('div');h.textContent='⋮⋮';
-      row.append(h,cb,name,chip,slider);layersEl.appendChild(row)});
+  // view
+  let zoom=1, panX=0, panY=0, bgToggle=0, baseW=0, baseH=0;
+
+  const PASS_ORDER = ['BaseColor','Depth','Metallic','Normal','Reflection','Roughness'];
+  const pad2 = n => String(n).padStart(2,'0');
+  const trimLower = s => String(s).replace(/\s+/g,'').toLowerCase();
+  const isHigh = s => ['high','beauty'].includes(trimLower(s));
+  const canonical = p => ({
+    basecolor:'BaseColor', base_color:'BaseColor', albedo:'BaseColor', diffuse:'BaseColor',
+    depth:'Depth', z:'Depth',
+    metallic:'Metallic', metalness:'Metallic',
+    normal:'Normal',
+    reflection:'Reflection', specular:'Reflection',
+    roughness:'Roughness', glossiness:'Roughness'
+  }[trimLower(p)] || (p.charAt(0).toUpperCase()+p.slice(1)));
+
+  function layerKey(L){
+    return (L.kind==='Combined') ? (L.displayName || `Combined ${pad2(L.combinedIndex||1)}`) : L.name;
   }
 
-  function setCurrentFrame(fid){if(!frames.has(fid))return;currentFrameId=fid;frameInput.value=fid;const fr=frames.get(fid);applyDefaults(fr);baseW=fr.base?fr.base.w:fr.layers[0].w;baseH=fr.base?fr.base.h:fr.layers[0].h;zoom=fitZoom();center();renderLayersUI();draw();updateInfo();rangeCur.textContent=fid}
+  // filename → {frameId, kind, pass}
+  function parseName(name){
+    const base = name.replace(/\.[^.]+$/,'');
+    // numeric only → Combined
+    const mNum = base.match(/^(\d+)$/);
+    if(mNum) return {frameId:mNum[1], kind:'Combined', pass:'Combined'};
+    // Pass_Frame
+    const mPF = base.match(/^([A-Za-z _]+)[-_ ](\d+)$/);
+    if(mPF){
+      const pass = canonical(mPF[1]);
+      if(isHigh(pass)) return {frameId:mPF[2], kind:'High', pass:'High'};
+      return {frameId:mPF[2], kind:'Layer', pass};
+    }
+    // Legacy Frame_Pass
+    const mFP = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
+    if(mFP){
+      const pass = canonical(mFP[2]);
+      if(isHigh(pass)) return {frameId:mFP[1], kind:'High', pass:'High'};
+      return {frameId:mFP[1], kind:'Layer', pass};
+    }
+    if(isHigh(base)) return {frameId:'unknown', kind:'High', pass:'High'};
+    const mTail = base.match(/(\d+)$/);
+    if(mTail){
+      return {frameId:mTail[1], kind:'Layer', pass:canonical(base.slice(0,mTail.index))};
+    }
+    return {frameId:'unknown', kind:'Layer', pass:canonical(base)};
+  }
 
-  async function handleFiles(files){for(const f of [...files]){if(!f.type.startsWith('image/'))continue;const url=URL.createObjectURL(f),img=new Image();await new Promise(r=>{img.onload=r;img.src=url});const {frameId,kind,pass}=parseName(f.name);if(!frames.has(frameId))frames.set(frameId,{base:null,layers:[]});const fr=frames.get(frameId);
-    if(kind==='High'){fr.base={img,w:img.naturalWidth,h:img.naturalHeight}}
-    else if(kind==='Combined'){const n=fr.layers.filter(x=>x.kind==='Combined').length+1;const key=`Combined ${pad2(n)}`;let op=opacityDefaults.has(key)?opacityDefaults.get(key):(n===1?1:0);if(!opacityDefaults.has(key)&&n===1){opacityDefaults.set(key,1);save()}fr.layers.push({kind:'Combined',displayName:key,combinedIndex:n,img,w:img.naturalWidth,h:img.naturalHeight,visible:true,opacity:op})}
-    else{const key=pass;const op=opacityDefaults.has(key)?opacityDefaults.get(key):0;fr.layers.push({name:pass,kind:'Layer',img,w:img.naturalWidth,h:img.naturalHeight,visible:true,opacity:op})}}
-    frameList=[...frames.keys()].sort((a,b)=>+a-+b);frameRange.max=frameList.length-1;rangeMin.textContent=frameList[0];rangeMax.textContent=frameList[frameList.length-1];if(!currentFrameId)setCurrentFrame(frameList[0]);else setCurrentFrame(currentFrameId)}
+  // apply persistent opacities to a frame
+  function applyOpacityDefaults(fr){
+    for(const L of fr.layers){
+      const key = layerKey(L);
+      if(opacityDefaults.has(key)){
+        const v = Number(opacityDefaults.get(key)) || 0;
+        L.opacity = v;
+        if(v>0) L.visible = true;
+      }
+    }
+  }
 
-  fileInput.onchange=e=>handleFiles(e.target.files);
-  cv.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};cv.ondragover=e=>e.preventDefault();
-  layersEl.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};layersEl.ondragover=e=>e.preventDefault();
-  btnFit.onclick=()=>{zoom=fitZoom();center();draw();updateInfo()};
-  btn100.onclick=()=>{zoom=1;center();draw();updateInfo()};
-  btnBG.onclick=()=>{bgToggle^=1;draw()};
-  frameRange.oninput=()=>{const fid=frameList[+frameRange.value];setCurrentFrame(fid)};
-  frameInput.onkeydown=e=>{if(e.key==='Enter'&&frames.has(frameInput.value))setCurrentFrame(frameInput.value)};
-  const ro=new ResizeObserver(setCanvasSize);ro.observe(cv);setCanvasSize();
+  // sort layers in a frame according to globalOrder; append unknowns via sensible defaults
+  function applyGlobalOrder(fr){
+    const idxOf = key => {
+      const i = globalOrder.indexOf(key);
+      return i === -1 ? Number.POSITIVE_INFINITY : i;
+    };
+    fr.layers.sort((a,b)=>{
+      const ka = layerKey(a), kb = layerKey(b);
+      const ia = idxOf(ka), ib = idxOf(kb);
+      if(ia !== ib) return ia - ib;
+
+      // If neither is in globalOrder, use default grouping: Combined first by combinedIndex, then PASS_ORDER
+      if(ia===Number.POSITIVE_INFINITY && ib===Number.POSITIVE_INFINITY){
+        if(a.kind==='Combined' && b.kind!=='Combined') return -1;
+        if(b.kind==='Combined' && a.kind!=='Combined') return 1;
+        if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
+        return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
+      }
+      // if both same index (shouldn't happen), keep as-is
+      return 0;
+    });
+  }
+
+  // update globalOrder from the current frame's visible order
+  function captureGlobalOrderFromFrame(fr){
+    const order = fr.layers.map(L => layerKey(L));
+    // de-duplicate preserving first occurrence
+    const seen = new Set();
+    globalOrder = order.filter(k => (seen.has(k)?false:seen.add(k)));
+    saveOrder();
+  }
+
+  // --- Canvas & draw ---
+  function setCanvasSize(){
+    cv.width = cv.clientWidth * devicePixelRatio;
+    cv.height = cv.clientHeight * devicePixelRatio;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    draw();
+  }
+  window.addEventListener('resize', setCanvasSize);
+
+  function fitZoom(){ if(!currentFrameId) return 1; return Math.min(cv.clientWidth/baseW, cv.clientHeight/baseH); }
+  function center(){ panX=(cv.clientWidth-baseW*zoom)/2; panY=(cv.clientHeight-baseH*zoom)/2; }
+
+  function drawBG(){
+    if(bgToggle===0){ ctx.fillStyle='#0a0c10'; ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight); return; }
+    const s=16,w=cv.clientWidth,h=cv.clientHeight;
+    for(let y=0;y<h;y+=s){ for(let x=0;x<w;x+=s){
+      ctx.fillStyle=((x+y)/s)%2?'#0e1218':'#0b0f15';
+      ctx.fillRect(x,y,s,s);
+    }}
+  }
+
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0);
+    drawBG();
+    if(!currentFrameId) return;
+    const fr = frames.get(currentFrameId);
+    ctx.setTransform(1,0,0,1,panX,panY);
+    ctx.scale(zoom,zoom);
+
+    // Base (scaled to baseW/H)
+    if(fr.base){
+      ctx.globalAlpha = 1;
+      ctx.drawImage(fr.base.img,0,0,fr.base.w,fr.base.h, 0,0, baseW,baseH);
+    }
+    // Layers
+    for(const L of fr.layers){
+      if(!L.visible || L.opacity<=0) continue;
+      ctx.globalAlpha = Math.max(0, Math.min(1, L.opacity));
+      ctx.drawImage(L.img,0,0,L.w,L.h, 0,0, baseW,baseH);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function updateInfo(){
+    infoDim.textContent = baseW && baseH ? `${baseW}×${baseH}` : '–';
+    infoZoom.textContent = `${Math.round(zoom*100)}%`;
+  }
+
+  function updateMismatchWarning(fr){
+    let bw = fr.base ? fr.base.w : (fr.layers[0]?.w||0);
+    let bh = fr.base ? fr.base.h : (fr.layers[0]?.h||0);
+    const anyMismatch = fr.layers.some(L => L.w !== bw || L.h !== bh) || (fr.base && (fr.base.w!==bw || fr.base.h!==bh)); // trivial check
+    infoWarn.textContent = anyMismatch ? 'Different sizes. Scaling to base.' : '';
+  }
+
+  // --- UI render (handle-only drag, sliders safe) ---
+  function renderLayersUI(){
+    layersEl.innerHTML = '';
+    if(!currentFrameId){ footer.textContent = 'No images'; return; }
+    const fr = frames.get(currentFrameId);
+    if(!fr) return;
+
+    // Base informational row
+    if(fr.base){
+      const baseRow = document.createElement('div'); baseRow.className='layer';
+      baseRow.innerHTML = `
+        <div class="handle"></div>
+        <div class="cbwrap"></div>
+        <div class="name">High (Base)</div>
+        <span class="chip">${fr.base.w}×${fr.base.h}</span>
+        <div class="slider"></div>
+      `;
+      layersEl.appendChild(baseRow);
+    }
+
+    // Build rows in fr.layers (already ordered by applyGlobalOrder)
+    fr.layers.forEach((L, idx)=>{
+      const row = document.createElement('div'); row.className='layer' + (L.visible ? '' : ' off');
+      row.dataset.index = idx;
+
+      // Drag handle ONLY
+      const handle = document.createElement('div'); handle.className='handle'; handle.textContent = '⋮⋮';
+      handle.setAttribute('draggable', 'true');
+      handle.addEventListener('dragstart', e=>{
+        row.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', String(idx));
+        e.dataTransfer.effectAllowed='move';
+      });
+      handle.addEventListener('dragend', ()=> row.classList.remove('dragging'));
+
+      // Drop target = the row
+      row.addEventListener('dragover', e=>{ e.preventDefault(); row.classList.add('drop-target'); e.dataTransfer.dropEffect='move'; });
+      row.addEventListener('dragleave', ()=> row.classList.remove('drop-target'));
+      row.addEventListener('drop', e=>{
+        e.preventDefault(); row.classList.remove('drop-target');
+        const from = Number(e.dataTransfer.getData('text/plain'));
+        const to = Number(row.dataset.index);
+        if(isNaN(from) || isNaN(to) || from===to) return;
+        const moved = fr.layers.splice(from,1)[0];
+        fr.layers.splice(to,0,moved);
+        // capture global order from this frame (by logical key) and persist
+        captureGlobalOrderFromFrame(fr);
+        renderLayersUI();
+        draw();
+      });
+
+      // Checkbox
+      const cbWrap = document.createElement('div'); cbWrap.className='cbwrap';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
+      cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
+      cbWrap.appendChild(cb);
+
+      // Name label (logical key)
+      const name = document.createElement('div'); name.className='name';
+      name.textContent = layerKey(L);
+      name.title = name.textContent;
+
+      // Chip (dims)
+      const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
+
+      // Slider
+      const sliderWrap = document.createElement('div'); sliderWrap.className='slider';
+      const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100;
+      slider.value = Math.round((L.opacity??0)*100);
+
+      // Prevent drag from inputs
+      [slider, cb].forEach(el=>{
+        el.addEventListener('mousedown', ev=> ev.stopPropagation());
+        el.addEventListener('touchstart', ev=> ev.stopPropagation(), {passive:true});
+        el.setAttribute('draggable','false');
+      });
+
+      slider.addEventListener('input', ()=>{
+        const v = slider.value/100;
+        L.opacity = v;
+        if(v>0 && !L.visible){ L.visible = true; row.classList.remove('off'); cb.checked = true; }
+        opacityDefaults.set(layerKey(L), v); saveOpacity();
+        draw();
+      });
+
+      sliderWrap.appendChild(slider);
+
+      row.append(handle, cbWrap, name, chip, sliderWrap);
+      layersEl.appendChild(row);
+    });
+
+    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder (order applies to all frames).';
+  }
+
+  // --- Frames / timeline ---
+  function updateFrameList(){
+    frameList = Array.from(frames.keys()).sort((a,b)=> Number(a) - Number(b));
+    if(frameList.length){
+      frameRange.min = 0;
+      frameRange.max = frameList.length - 1;
+      const idx = Math.max(0, frameList.indexOf(currentFrameId ?? frameList[0]));
+      frameRange.value = idx;
+      rangeMin.textContent = frameList[0];
+      rangeMax.textContent = frameList[frameList.length-1];
+      rangeCur.textContent = frameList[idx];
+    }else{
+      frameRange.min = frameRange.max = frameRange.value = 0;
+      rangeMin.textContent = rangeMax.textContent = rangeCur.textContent = '—';
+    }
+  }
+
+  function setCurrentFrame(fid){
+    if(!frames.has(fid)) return;
+    currentFrameId = fid;
+    frameInput.value = fid;
+    const fr = frames.get(fid);
+
+    // apply persistent settings
+    applyOpacityDefaults(fr);
+    applyGlobalOrder(fr);
+
+    // base dimensions
+    baseW = fr.base ? fr.base.w : (fr.layers[0]?.w || 0);
+    baseH = fr.base ? fr.base.h : (fr.layers[0]?.h || 0);
+
+    updateFrameList();
+    updateMismatchWarning(fr);
+    zoom = fitZoom();
+    center();
+    renderLayersUI();
+    draw();
+    updateInfo();
+  }
+
+  // --- Files ---
+  async function handleFiles(files){
+    const sorted = [...files].sort((a,b)=> a.name.localeCompare(b.name));
+    for(const f of sorted){
+      if(!f.type.startsWith('image/')) continue;
+      const url = URL.createObjectURL(f);
+      const img = new Image();
+      await new Promise(res=>{ img.onload=res; img.src=url; });
+      const {frameId, kind, pass} = parseName(f.name);
+
+      if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[], userSorted:false}); }
+      const fr = frames.get(frameId);
+
+      if(kind==='High'){
+        fr.base = { kind:'High', name:'High', img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:1 };
+      } else if(kind==='Combined'){
+        const existingCombined = fr.layers.filter(x=>x.kind==='Combined').length;
+        const idx = existingCombined + 1;
+        const displayName = `Combined ${pad2(idx)}`;
+        // Combined 01 default = 1.0 unless user stored another value
+        let op = opacityDefaults.has(displayName) ? Number(opacityDefaults.get(displayName)) : (idx===1 ? 1 : 0);
+        if(idx===1 && !opacityDefaults.has(displayName)){ opacityDefaults.set(displayName,1); saveOpacity(); }
+        fr.layers.push({ kind:'Combined', displayName, combinedIndex: idx, img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
+      } else {
+        const key = pass;
+        const op = opacityDefaults.has(key) ? Number(opacityDefaults.get(key)) : 0;
+        fr.layers.push({ kind:'Layer', name:pass, img, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
+      }
+    }
+
+    // apply global order to all frames after loading new layers
+    for(const [fid, fr] of frames.entries()){
+      applyOpacityDefaults(fr);
+      applyGlobalOrder(fr);
+    }
+
+    updateFrameList();
+    if(!currentFrameId && frameList.length){ setCurrentFrame(frameList[0]); }
+    else if(currentFrameId){ setCurrentFrame(currentFrameId); }
+  }
+
+  // --- Upload & DnD zones ---
+  fileInput.addEventListener('change', e=> handleFiles(e.target.files));
+
+  ;['dragenter','dragover','dragleave','drop'].forEach(evt=>{
+    [layersEl, cv].forEach(el=>{
+      el.addEventListener(evt, e=>{ e.preventDefault(); if(evt==='drop') handleFiles(e.dataTransfer.files); });
+    });
+  });
+
+  // --- Canvas interactions ---
+  let dragging=false,lastX=0,lastY=0;
+  cv.addEventListener('mousedown', e=>{dragging=true; lastX=e.clientX; lastY=e.clientY;});
+  window.addEventListener('mouseup', ()=> dragging=false);
+  window.addEventListener('mousemove', e=>{
+    if(!dragging) return;
+    panX += (e.clientX-lastX); panY += (e.clientY-lastY);
+    lastX=e.clientX; lastY=e.clientY; draw();
+  });
+  cv.addEventListener('wheel', e=>{
+    if(!currentFrameId) return; e.preventDefault();
+    const mx=e.offsetX,my=e.offsetY, prev=zoom, d=Math.sign(e.deltaY)*-0.1;
+    zoom = Math.max(0.05, Math.min(32, zoom*(1+d)));
+    const wx=(mx-panX)/prev, wy=(my-panY)/prev;
+    panX = mx - wx*zoom; panY = my - wy*zoom; draw(); updateInfo();
+  }, {passive:false});
+
+  // --- Header controls ---
+  btnFit.addEventListener('click', ()=>{ zoom=fitZoom(); center(); draw(); updateInfo(); });
+  btn100.addEventListener('click', ()=>{ zoom=1; center(); draw(); updateInfo(); });
+  btnBG.addEventListener('click', ()=>{ bgToggle=(bgToggle+1)%2; draw(); });
+
+  frameInput.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){
+      const val = frameInput.value.trim();
+      if(frames.has(val)) setCurrentFrame(val);
+    }
+  });
+
+  frameRange.addEventListener('input', ()=>{
+    if(!frameList.length) return;
+    const idx = Number(frameRange.value);
+    const fid = frameList[Math.max(0, Math.min(idx, frameList.length-1))];
+    rangeCur.textContent = fid;
+    setCurrentFrame(fid);
+  });
+
+  // --- Init ---
+  const ro = new ResizeObserver(()=> setCanvasSize()); ro.observe(cv);
+  setCanvasSize();
 })();
 </script>
 </body>
