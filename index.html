@@ -9,15 +9,13 @@
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
       --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
-      /* Responsive slider column: min 120, fluid 55%, max 220 */
-      --sliderw: clamp(120px, 55%, 220px);
+      /* Slider column: shorter (max 160px) and responsive */
+      --sliderw: clamp(100px, 40%, 160px);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{
-      margin:0; background:var(--bg); color:var(--text);
-      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif
-    }
+    body{margin:0; background:var(--bg); color:var(--text);
+         font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
 
     .muted{color:var(--muted)}
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
@@ -26,36 +24,23 @@
       display:grid;
       grid-template-columns:auto 1fr auto auto auto auto;
       gap:.5rem; align-items:center;
-      padding:.5rem .75rem;
-      background:linear-gradient(180deg,#0f1317,#0b0d10);
+      padding:.5rem .75rem; background:linear-gradient(180deg,#0f1317,#0b0d10);
       border-bottom:1px solid var(--line)
     }
     header h1{font-size:14px; margin:0; letter-spacing:.2px; opacity:.95}
-    .btn{
-      appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text);
-      padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer
-    }
+    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text);
+         padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
     .btn:hover{border-color:#2b3646}
     .field{display:flex; align-items:center; gap:.4rem}
-    .input{
-      border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem;
-      padding:.4rem .55rem; font-size:12px; width:90px
-    }
+    .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem;
+           padding:.4rem .55rem; font-size:12px; width:90px}
     .range-header{display:flex; align-items:center; gap:.5rem; min-width:0}
     .range-header input[type=range]{width:clamp(160px, 28vw, 320px)} /* responsive timeline */
 
-    .main{
-      display:grid; grid-template-columns:360px 1fr;
-      height:calc(100vh - 50px); min-height:420px
-    }
-    .left{
-      border-right:1px solid var(--line); background:var(--panel);
-      display:flex; flex-direction:column; justify-content:space-between; min-width:0
-    }
-    .layers{
-      padding:.5rem; display:flex; flex-direction:column; gap:.5rem;
-      overflow:auto; min-height:0
-    }
+    .main{display:grid; grid-template-columns:400px 1fr; height:calc(100vh - 50px); min-height:420px}
+    .left{border-right:1px solid var(--line); background:var(--panel);
+          display:flex; flex-direction:column; justify-content:space-between; min-width:0}
+    .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow:auto; min-height:0}
     .right{position:relative; min-width:0}
 
     /* Layer list */
@@ -64,54 +49,43 @@
       /* checkbox | name (min 120px) | chip | slider | % */
       grid-template-columns:24px minmax(120px,1fr) max-content var(--sliderw) max-content;
       align-items:center; gap:.5rem;
-      padding:.55rem; border-radius:.6rem;
+      padding:.45rem; border-radius:.5rem;
       border:1px solid transparent; background:#0e1218;
       transition:opacity .15s ease; min-width:0
     }
     .layer.base{background:#0f151e; border-color:#203040}
     .layer.off{opacity:.45}
 
-    .cbwrap{display:flex; align-items:center; justify-content:center}
-    .cbwrap input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
+    .cbwrap{text-align:center}
+    .cbwrap input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent)}
 
-    .name{
-      display:block; font-size:12px; color:var(--text);
-      min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis
-    }
-    .chip{
-      font-size:11px; color:#cbd5e1; background:#0a0f15;
-      padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem; white-space:nowrap
-    }
+    .name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .chip{font-size:11px; color:#cbd5e1; background:#0a0f15; padding:.05rem .35rem; border-radius:.35rem; white-space:nowrap}
     .slider{display:flex; align-items:center; gap:.5rem; min-width:0}
-    .slider input[type=range]{width:100%} /* fills responsive column */
-    .pct{width:40px; text-align:right; font-size:12px; color:#c7cbd1; white-space:nowrap}
+    .slider input[type=range]{width:100%}
+    .pct{width:38px; text-align:right; font-size:12px}
 
     .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
     .toolbar .btn{backdrop-filter:blur(6px); background:rgba(18,22,28,.75)}
 
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
 
-    .footer{
-      position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted);
-      background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230
-    }
+    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted);
+            background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
     .warn{color:#fcd34d}
 
     /* Naming rules inside left panel */
     .naming{
-      margin:.5rem; background:rgba(9,12,16,.85);
-      border:1px solid #1a2230; border-radius:.6rem;
-      padding:.6rem .7rem; font-size:12px; line-height:1.4
+      margin:.5rem; background:#0f1317; border:1px solid #1a2230; border-radius:.5rem; padding:.5rem; font-size:12px; line-height:1.4
     }
-    .naming h4{margin:.1rem 0 .35rem 0; font-size:12px; color:#e5e7eb}
+    .naming h4{margin:.1rem 0 .3rem 0; font-size:12px; color:#e5e7eb}
     .naming code{background:#0f1720; border:1px solid #202b3a; padding:.05rem .3rem; border-radius:.35rem}
 
-    /* Mobile tweaks */
     @media (max-width: 900px){
-      .main{grid-template-columns: 1fr}
-      .left{position:absolute; inset:auto 0 0 0; height:48%}
-      .right{height:52vh}
-      :root{ --sliderw: clamp(110px, 52%, 190px); }
+      .main{grid-template-columns:1fr}
+      .left{position:absolute; bottom:0; height:50%}
+      .right{height:50%}
+      :root{--sliderw:clamp(90px, 40%, 130px);}
     }
   </style>
 </head>
@@ -144,7 +118,6 @@
   <div class="main">
     <aside class="left">
       <div class="layers" id="layers"></div>
-
       <div class="naming">
         <h4>Naming rules</h4>
         <ul style="margin:0; padding-left:16px;">
@@ -312,12 +285,14 @@
 
     // Base row (no checkbox, no slider)
     const baseRow = document.createElement('div'); baseRow.className='layer base';
-    const cbEmpty = document.createElement('div'); cbEmpty.className='cbwrap'; // placeholder
-    const baseName = document.createElement('div'); baseName.className='name'; baseName.textContent = fr.base ? `${fr.base.name} (Base)` : 'No High';
+    const cbEmpty = document.createElement('div'); cbEmpty.className='cbwrap';
+    const baseName = document.createElement('div'); baseName.className='name';
+    baseName.textContent = fr.base ? `${fr.base.name} (Base)` : 'No High';
     baseName.title = baseName.textContent;
-    const baseChip = document.createElement('span'); baseChip.className='chip'; baseChip.textContent = fr.base ? `${fr.base.w}×${fr.base.h}` : '—';
-    const spacer = document.createElement('div'); // slider placeholder
-    const spacer2 = document.createElement('div'); // pct placeholder
+    const baseChip = document.createElement('span'); baseChip.className='chip';
+    baseChip.textContent = fr.base ? `${fr.base.w}×${fr.base.h}` : '—';
+    const spacer = document.createElement('div');
+    const spacer2 = document.createElement('div');
     baseRow.append(cbEmpty, baseName, baseChip, spacer, spacer2);
     layersEl.appendChild(baseRow);
 
@@ -463,6 +438,24 @@
     rangeCur.textContent = fid;
     setCurrentFrame(fid);
   });
+
+  // Info labels
+  function updateInfo(){ infoDim.textContent = baseW && baseH ? `${baseW}×${baseH}` : '–'; infoZoom.textContent = `${Math.round(zoom*100)}%`; }
+
+  // Recalc dims on frame change
+  function checkDims(){
+    if(!currentFrameId) return;
+    const fr = frames.get(currentFrameId); if(!fr) return;
+    const dims = [];
+    if(fr.base) dims.push([fr.base.w, fr.base.h]);
+    for(const L of fr.layers) dims.push([L.w,L.h]);
+    if(dims.length===0) return;
+    baseW = fr.base ? fr.base.w : dims[0][0];
+    baseH = fr.base ? fr.base.h : dims[0][1];
+    const anyMismatch = dims.some(([w,h])=> w!==baseW || h!==baseH);
+    infoWarn.textContent = anyMismatch ? 'Different sizes. Scaling to base.' : '';
+    infoWarn.className = anyMismatch ? 'btn warn' : 'btn muted';
+  }
 
   // init
   const ro = new ResizeObserver(setCanvasSize); ro.observe(cv);
