@@ -3,66 +3,59 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frame Viewer • High + Layers (fade + timeline)</title>
-  <meta name="description" content="Compare render passes per frame. 'High' as base (no slider), case-insensitive, drag & drop on panel and canvas. Frame input + timeline slider.">
+  <title>Frame Viewer • High + Layers (combined + drag-reorder)</title>
+  <meta name="description" content="Compare render passes per frame. Supports numeric-only 'Combined' images, new Pass_Frame naming, manual layer reordering.">
   <style>
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
       --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
-      /* Slider column: compact & responsive */
       --sliderw: clamp(90px, 38%, 140px);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{
-      margin:0; background:var(--bg); color:var(--text);
-      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif
-    }
+    body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
 
     .muted{color:var(--muted)}
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
 
     header{
-      display:grid;
-      grid-template-columns:auto 1fr auto auto auto auto;
-      gap:.5rem; align-items:center;
-      padding:.5rem .75rem; background:linear-gradient(180deg,#0f1317,#0b0d10);
-      border-bottom:1px solid var(--line)
+      display:grid; grid-template-columns:auto 1fr auto auto auto auto;
+      gap:.5rem; align-items:center; padding:.5rem .75rem;
+      background:linear-gradient(180deg,#0f1317,#0b0d10); border-bottom:1px solid var(--line)
     }
-    header h1{font-size:14px; margin:0; letter-spacing:.2px; opacity:.95}
-    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text);
-         padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
+    header h1{font-size:14px; margin:0; opacity:.95; letter-spacing:.2px}
+    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text); padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
     .btn:hover{border-color:#2b3646}
     .field{display:flex; align-items:center; gap:.4rem}
-    .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem;
-           padding:.4rem .55rem; font-size:12px; width:90px}
+    .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem; padding:.4rem .55rem; font-size:12px; width:90px}
     .range-header{display:flex; align-items:center; gap:.5rem; min-width:0}
-    .range-header input[type=range]{width:clamp(160px, 28vw, 320px)} /* responsive timeline */
+    .range-header input[type=range]{width:clamp(160px, 28vw, 320px)}
 
     .main{display:grid; grid-template-columns:400px 1fr; height:calc(100vh - 50px); min-height:420px}
     .left{
       border-right:1px solid var(--line); background:var(--panel);
       display:flex; flex-direction:column; justify-content:space-between;
-      min-width:0; overflow-x:hidden /* no horizontal scroll */
+      min-width:0; overflow-x:hidden
     }
-    .layers{
-      padding:.5rem; display:flex; flex-direction:column; gap:.5rem;
-      overflow-y:auto; overflow-x:hidden; min-height:0
-    }
+    .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; overflow-x:hidden; min-height:0}
     .right{position:relative; min-width:0}
 
-    /* Layer rows */
+    /* Rows */
     .layer{
       display:grid;
-      /* checkbox | name (min 120px) | chip | slider  */
-      grid-template-columns:24px minmax(120px,1fr) max-content var(--sliderw);
+      /* drag | checkbox | name | chip | slider */
+      grid-template-columns:20px 24px minmax(120px,1fr) max-content var(--sliderw);
       align-items:center; gap:.5rem;
-      padding:.45rem; border-radius:.5rem;
-      border:1px solid transparent; background:#0e1218;
-      transition:opacity .15s ease; min-width:0
+      padding:.45rem; border-radius:.5rem; border:1px solid transparent; background:#0e1218;
+      transition:opacity .15s ease, border-color .15s ease; min-width:0
     }
     .layer.base{background:#0f151e; border-color:#203040}
     .layer.off{opacity:.45}
+    .handle{
+      cursor:grab; user-select:none; font-size:14px; line-height:1; text-align:center; opacity:.8
+    }
+    .layer.dragging{opacity:.6; border-color:#2b3646}
+    .layer.drop-target{outline:2px dashed #2b3646; outline-offset:-3px}
 
     .cbwrap{text-align:center}
     .cbwrap input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent)}
@@ -70,8 +63,7 @@
     .name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
     .chip{
       font-size:11px; color:#cbd5e1; background:#0a0f15;
-      padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem;
-      white-space:nowrap; max-width:96px; overflow:hidden; text-overflow:ellipsis
+      padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem; white-space:nowrap; max-width:110px; overflow:hidden; text-overflow:ellipsis
     }
     .slider{display:flex; align-items:center; gap:.5rem; min-width:0}
     .slider input[type=range]{width:100%}
@@ -80,16 +72,10 @@
     .toolbar .btn{backdrop-filter:blur(6px); background:rgba(18,22,28,.75)}
 
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
-
-    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted);
-            background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
+    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted); background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
     .warn{color:#fcd34d}
 
-    /* Naming rules inside left panel */
-    .naming{
-      margin:.5rem; background:#0f1317; border:1px solid #1a2230; border-radius:.5rem;
-      padding:.5rem; font-size:12px; line-height:1.4
-    }
+    .naming{margin:.5rem; background:#0f1317; border:1px solid #1a2230; border-radius:.5rem; padding:.5rem; font-size:12px; line-height:1.4}
     .naming h4{margin:.1rem 0 .3rem 0; font-size:12px; color:#e5e7eb}
     .naming code{background:#0f1720; border:1px solid #202b3a; padding:.05rem .3rem; border-radius:.35rem}
 
@@ -133,12 +119,10 @@
       <div class="naming">
         <h4>Naming rules</h4>
         <ul style="margin:0; padding-left:16px;">
-          <li>Filenames: <code>####_Suffix.ext</code> (e.g. <code>0001_BaseColor.png</code>).</li>
-          <li>Suffixes (case-insensitive): <code>High</code>, <code>BaseColor</code>, <code>Depth</code>, <code>Metallic</code>, <code>Normal</code>, <code>Reflection</code>, <code>Roughness</code>.</li>
-          <li><code>High</code> = Beauty/Base (always drawn first, no slider).</li>
-          <li>Other passes overlay the base with fade (sliders start at 0%).</li>
-          <li>Recommended: same resolution across all passes within a frame.</li>
-          <li>Multiple frames supported; use the timeline or type a frame number.</li>
+          <li>Numeric-only files (e.g. <code>1.png</code>, <code>025.jpg</code>) are treated as <em>Combined</em> passes and listed first.</li>
+          <li>Layer pattern (case-insensitive): <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code> (any number of digits).</li>
+          <li><code>High</code> or <code>High_#</code> (if present) is the base image (always drawn, no slider).</li>
+          <li>Drag layers in the list to change the composition order.</li>
         </ul>
       </div>
     </aside>
@@ -178,7 +162,8 @@
 
   // ==== State ====
   // frames: "0001" -> { base: entry|null, layers: entry[] }
-  // entry: { name, img, url, w, h, visible, opacity }
+  // entry: { name, kind, img, url, w, h, visible, opacity }
+  // kind in {'High','Combined','Layer'}
   let frames = new Map();
   let frameList = [];
   let currentFrameId = null;
@@ -191,9 +176,12 @@
   const PASS_ORDER = ['BaseColor','Depth','Metallic','Normal','Reflection','Roughness'];
 
   // ==== Helpers ====
-  function isHighName(n){ return String(n).replace(/\s+/g,'').toLowerCase()==='high'; }
+  const trimLower = s => String(s).replace(/\s+/g,'').toLowerCase();
+
+  function isHighName(part){ const s = trimLower(part); return s==='high' || s==='beauty'; }
+
   function canonicalPass(p){
-    const s = String(p).replace(/\s+/g,'').toLowerCase();
+    const s = trimLower(p);
     const map = {
       high:'High', beauty:'High',
       basecolor:'BaseColor', base_color:'BaseColor', albedo:'BaseColor', diffuse:'BaseColor',
@@ -205,13 +193,44 @@
     };
     return map[s] || (s.charAt(0).toUpperCase()+s.slice(1));
   }
+
+  // Parse filename to {frameId, kind, pass?}
+  // Supports:
+  //  - Numeric-only basename -> Combined for that frame
+  //  - Pass_Frame (e.g., BaseColor_12)
+  //  - Legacy Frame_Pass (e.g., 0012_BaseColor) still supported
+  //  - High or High_12 as base
   function parseName(name){
-    // "XXXX_Suffix.ext"
     const base = name.replace(/\.[^.]+$/,'');
-    const m = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
-    if(!m) return {frameId:'unknown', pass:canonicalPass(base)};
-    return {frameId:m[1], pass:canonicalPass(m[2])};
+    // numeric-only: Combined
+    const mNum = base.match(/^(\d+)$/);
+    if(mNum){
+      return {frameId: mNum[1], kind:'Combined', pass:'Combined'};
+    }
+    // Pass_Frame
+    const mPF = base.match(/^([A-Za-z ]+)[-_ ](\d+)$/);
+    if(mPF){
+      const pass = canonicalPass(mPF[1]);
+      if(isHighName(pass)) return {frameId:mPF[2], kind:'High', pass:'High'};
+      return {frameId:mPF[2], kind:'Layer', pass};
+    }
+    // Legacy Frame_Pass
+    const mFP = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
+    if(mFP){
+      const pass = canonicalPass(mFP[2]);
+      if(isHighName(pass)) return {frameId:mFP[1], kind:'High', pass:'High'};
+      return {frameId:mFP[1], kind:'Layer', pass};
+    }
+    // Just 'High'
+    if(isHighName(base)) return {frameId:'unknown', kind:'High', pass:'High'};
+    // Fallback: try to split on underscores/spaces and look for trailing number
+    const mTail = base.match(/(\d+)$/);
+    if(mTail){
+      return {frameId:mTail[1], kind:'Layer', pass:canonicalPass(base.slice(0, mTail.index))};
+    }
+    return {frameId:'unknown', kind:'Layer', pass:canonicalPass(base)};
   }
+
   const pad = (n, len) => String(n).padStart(len, '0');
 
   // ==== Canvas ====
@@ -253,13 +272,13 @@
     ctx.setTransform(1,0,0,1,panX,panY);
     ctx.scale(zoom, zoom);
 
-    // High (base) always first, 100%
+    // Base first
     if(fr.base){
       const B = fr.base; ctx.globalAlpha = 1;
       if(B.w!==baseW || B.h!==baseH) ctx.drawImage(B.img,0,0,B.w,B.h,0,0,baseW,baseH);
       else ctx.drawImage(B.img,0,0);
     }
-    // Layers above with opacity
+    // Then layers in current order (already user-reordered)
     for(const L of fr.layers){
       if(!L.visible || L.opacity<=0) continue;
       ctx.globalAlpha = Math.max(0, Math.min(1, L.opacity));
@@ -288,7 +307,7 @@
     infoWarn.className = anyMismatch ? 'btn warn' : 'btn muted';
   }
 
-  // ==== UI: layers (no slider for High) ====
+  // ==== UI render (with drag-reorder) ====
   function renderLayersUI(){
     layersEl.innerHTML = '';
     if(!currentFrameId){ footer.textContent = 'No images'; return; }
@@ -296,30 +315,65 @@
 
     // Base row (no checkbox, no slider)
     const baseRow = document.createElement('div'); baseRow.className='layer base';
-    const cbEmpty = document.createElement('div'); cbEmpty.className='cbwrap';
-    const baseName = document.createElement('div'); baseName.className='name';
-    baseName.textContent = fr.base ? `${fr.base.name} (Base)` : 'No High';
-    baseName.title = baseName.textContent;
-    const baseChip = document.createElement('span'); baseChip.className='chip';
-    baseChip.textContent = fr.base ? `${fr.base.w}×${fr.base.h}` : '—';
-    const sliderPlaceholder = document.createElement('div'); sliderPlaceholder.className='slider';
-    baseRow.append(cbEmpty, baseName, baseChip, sliderPlaceholder);
+    baseRow.innerHTML = `
+      <div class="handle"> </div>
+      <div class="cbwrap"> </div>
+      <div class="name">${fr.base ? 'High (Base)' : 'No High'}</div>
+      <span class="chip">${fr.base ? `${fr.base.w}×${fr.base.h}` : '—'}</span>
+      <div class="slider"></div>
+    `;
     layersEl.appendChild(baseRow);
 
-    // Order layers
-    fr.layers.sort((a,b)=> PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name));
+    // Ensure initial order: Combined first (by index), then other passes by PASS_ORDER
+    fr.layers.sort((a,b)=>{
+      if(a.kind==='Combined' && b.kind!=='Combined') return -1;
+      if(b.kind==='Combined' && a.kind!=='Combined') return 1;
+      if(a.kind==='Combined' && b.kind==='Combined') return a.combinedIndex - b.combinedIndex;
+      // both 'Layer'
+      return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
+    });
 
-    // Layers with checkbox + slider (start at 0%)
-    fr.layers.forEach(L=>{
-      const row = document.createElement('div');
-      row.className = 'layer' + (L.visible ? '' : ' off');
+    // Render each layer row
+    fr.layers.forEach((L, idx)=>{
+      const row = document.createElement('div'); row.className='layer' + (L.visible ? '' : ' off');
+      row.draggable = true;
+      row.dataset.index = idx;
+
+      // DRAG EVENTS
+      row.addEventListener('dragstart', e=>{
+        row.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', String(idx));
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', ()=> row.classList.remove('dragging'));
+      row.addEventListener('dragover', e=>{
+        e.preventDefault();
+        row.classList.add('drop-target');
+        e.dataTransfer.dropEffect='move';
+      });
+      row.addEventListener('dragleave', ()=> row.classList.remove('drop-target'));
+      row.addEventListener('drop', e=>{
+        e.preventDefault();
+        row.classList.remove('drop-target');
+        const from = Number(e.dataTransfer.getData('text/plain'));
+        const to = Number(row.dataset.index);
+        if(isNaN(from) || isNaN(to) || from===to) return;
+        const moved = fr.layers.splice(from,1)[0];
+        fr.layers.splice(to,0,moved);
+        renderLayersUI(); // re-render to refresh indices
+        draw();
+      });
+
+      // Build row content
+      const handle = document.createElement('div'); handle.className='handle'; handle.textContent = '⋮⋮';
 
       const cbWrap = document.createElement('div'); cbWrap.className='cbwrap';
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
       cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
       cbWrap.appendChild(cb);
 
-      const name = document.createElement('div'); name.className='name'; name.textContent = L.name; name.title = L.name;
+      const name = document.createElement('div'); name.className='name';
+      name.textContent = (L.kind==='Combined') ? (L.displayName || 'Combined') : L.name;
 
       const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
 
@@ -328,11 +382,11 @@
       slider.addEventListener('input', ()=>{ L.opacity = slider.value/100; draw(); });
       sliderWrap.appendChild(slider);
 
-      row.append(cbWrap, name, chip, sliderWrap);
+      row.append(handle, cbWrap, name, chip, sliderWrap);
       layersEl.appendChild(row);
     });
 
-    footer.textContent = fr.base ? 'Base: High + layers with fade' : 'Missing High for this frame';
+    footer.textContent = fr.base ? 'Base: High + layers (drag to reorder)' : 'Missing High for this frame';
   }
 
   // ==== Frames / Timeline ====
@@ -367,27 +421,34 @@
   // ==== File handling ====
   async function handleFiles(files){
     const sorted = [...files].sort((a,b)=> a.name.localeCompare(b.name));
+    // tally for Combined indices per frame
+    const combinedCounts = new Map();
+
     for(const f of sorted){
       if(!f.type.startsWith('image/')) continue;
       const url = URL.createObjectURL(f);
       const img = new Image();
       await new Promise(res=>{ img.onload=res; img.src=url; });
-      const {frameId, pass} = parseName(f.name);
+      const {frameId, kind, pass} = parseName(f.name);
 
       if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[]}); }
-      const entry = {name:pass, img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: isHighName(pass) ? 1 : 0};
-
       const fr = frames.get(frameId);
-      if(isHighName(pass)) fr.base = entry; else fr.layers.push(entry);
+
+      if(kind==='High'){
+        fr.base = { name:'High', kind:'High', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:1 };
+      } else if(kind==='Combined'){
+        const count = (combinedCounts.get(frameId)||0) + 1;
+        combinedCounts.set(frameId, count);
+        const displayName = `Combined ${count}`;
+        fr.layers.push({ name:'Combined', displayName, kind:'Combined', combinedIndex: count, img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:0 });
+      } else {
+        fr.layers.push({ name:pass, kind:'Layer', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:0 });
+      }
     }
 
     updateFrameList();
-
-    if(!currentFrameId && frameList.length){
-      setCurrentFrame(frameList[0]);
-    }else if(currentFrameId){
-      setCurrentFrame(currentFrameId);
-    }
+    if(!currentFrameId && frameList.length){ setCurrentFrame(frameList[0]); }
+    else if(currentFrameId){ setCurrentFrame(currentFrameId); }
     updateInfo();
   }
 
