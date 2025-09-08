@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frame Viewer • High + Layers (combined + drag-reorder)</title>
-  <meta name="description" content="Compare render passes per frame. Supports numeric-only 'Combined' images, new Pass_Frame naming, manual layer reordering.">
+  <title>Frame Viewer • Combined + Drag Reorder</title>
+  <meta name="description" content="Compare render passes per frame. Numeric-only files become Combined ##, supports Pass_Frame naming and manual layer reordering.">
   <style>
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
       --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
-      --sliderw: clamp(90px, 38%, 140px);
+      /* Slider column fully visible inside 400px panel */
+      --sliderw: clamp(100px, 35%, 130px);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -40,22 +41,19 @@
     .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; overflow-x:hidden; min-height:0}
     .right{position:relative; min-width:0}
 
-    /* Rows */
+    /* Layer rows */
     .layer{
       display:grid;
-      /* drag | checkbox | name | chip | slider */
+      /* handle | checkbox | name | chip | slider */
       grid-template-columns:20px 24px minmax(120px,1fr) max-content var(--sliderw);
-      align-items:center; gap:.5rem;
-      padding:.45rem; border-radius:.5rem; border:1px solid transparent; background:#0e1218;
+      align-items:center; gap:.4rem;
+      padding:.4rem; border-radius:.5rem; border:1px solid transparent; background:#0e1218;
       transition:opacity .15s ease, border-color .15s ease; min-width:0
     }
-    .layer.base{background:#0f151e; border-color:#203040}
     .layer.off{opacity:.45}
-    .handle{
-      cursor:grab; user-select:none; font-size:14px; line-height:1; text-align:center; opacity:.8
-    }
-    .layer.dragging{opacity:.6; border-color:#2b3646}
-    .layer.drop-target{outline:2px dashed #2b3646; outline-offset:-3px}
+    .handle{cursor:grab; user-select:none; font-size:14px; line-height:1; text-align:center; opacity:.8}
+    .dragging{opacity:.6; border-color:#2b3646}
+    .drop-target{outline:2px dashed #2b3646; outline-offset:-3px}
 
     .cbwrap{text-align:center}
     .cbwrap input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent)}
@@ -63,9 +61,10 @@
     .name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
     .chip{
       font-size:11px; color:#cbd5e1; background:#0a0f15;
-      padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem; white-space:nowrap; max-width:110px; overflow:hidden; text-overflow:ellipsis
+      padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem;
+      white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis
     }
-    .slider{display:flex; align-items:center; gap:.5rem; min-width:0}
+    .slider{display:flex; align-items:center; gap:.4rem; min-width:0}
     .slider input[type=range]{width:100%}
 
     .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
@@ -83,7 +82,7 @@
       .main{grid-template-columns:1fr}
       .left{position:absolute; bottom:0; height:50%}
       .right{height:50%}
-      :root{--sliderw:clamp(80px, 40%, 120px);}
+      :root{--sliderw:clamp(90px, 40%, 120px);}
     }
   </style>
 </head>
@@ -119,10 +118,10 @@
       <div class="naming">
         <h4>Naming rules</h4>
         <ul style="margin:0; padding-left:16px;">
-          <li>Numeric-only files (e.g. <code>1.png</code>, <code>025.jpg</code>) are treated as <em>Combined</em> passes and listed first.</li>
-          <li>Layer pattern (case-insensitive): <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code> (any number of digits).</li>
-          <li><code>High</code> or <code>High_#</code> (if present) is the base image (always drawn, no slider).</li>
-          <li>Drag layers in the list to change the composition order.</li>
+          <li>Numeric-only files (e.g. <code>1.png</code>, <code>025.jpg</code>) become <em>Combined 01, 02…</em> (listed first).</li>
+          <li>Layer pattern (case-insensitive): <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code>.</li>
+          <li><code>High</code> or <code>High_#</code> (if present) renders as base; if absent, layers still render fine.</li>
+          <li>Drag the <b>⋮⋮</b> handle to reorder layers (top renders first).</li>
         </ul>
       </div>
     </aside>
@@ -162,8 +161,8 @@
 
   // ==== State ====
   // frames: "0001" -> { base: entry|null, layers: entry[] }
-  // entry: { name, kind, img, url, w, h, visible, opacity }
-  // kind in {'High','Combined','Layer'}
+  // entry: { name, kind, img, url, w, h, visible, opacity, combinedIndex? }
+  // kind ∈ {'High','Combined','Layer'}
   let frames = new Map();
   let frameList = [];
   let currentFrameId = null;
@@ -174,12 +173,11 @@
   let baseW = 0, baseH = 0;
 
   const PASS_ORDER = ['BaseColor','Depth','Metallic','Normal','Reflection','Roughness'];
+  const pad2 = n => String(n).padStart(2,'0');
 
   // ==== Helpers ====
   const trimLower = s => String(s).replace(/\s+/g,'').toLowerCase();
-
   function isHighName(part){ const s = trimLower(part); return s==='high' || s==='beauty'; }
-
   function canonicalPass(p){
     const s = trimLower(p);
     const map = {
@@ -194,19 +192,13 @@
     return map[s] || (s.charAt(0).toUpperCase()+s.slice(1));
   }
 
-  // Parse filename to {frameId, kind, pass?}
-  // Supports:
-  //  - Numeric-only basename -> Combined for that frame
-  //  - Pass_Frame (e.g., BaseColor_12)
-  //  - Legacy Frame_Pass (e.g., 0012_BaseColor) still supported
-  //  - High or High_12 as base
+  // Parse to {frameId, kind, pass}
   function parseName(name){
     const base = name.replace(/\.[^.]+$/,'');
-    // numeric-only: Combined
+    // numeric-only -> Combined
     const mNum = base.match(/^(\d+)$/);
-    if(mNum){
-      return {frameId: mNum[1], kind:'Combined', pass:'Combined'};
-    }
+    if(mNum){ return {frameId:mNum[1], kind:'Combined', pass:'Combined'}; }
+
     // Pass_Frame
     const mPF = base.match(/^([A-Za-z ]+)[-_ ](\d+)$/);
     if(mPF){
@@ -223,7 +215,7 @@
     }
     // Just 'High'
     if(isHighName(base)) return {frameId:'unknown', kind:'High', pass:'High'};
-    // Fallback: try to split on underscores/spaces and look for trailing number
+    // Fallback: trailing number as frame
     const mTail = base.match(/(\d+)$/);
     if(mTail){
       return {frameId:mTail[1], kind:'Layer', pass:canonicalPass(base.slice(0, mTail.index))};
@@ -231,7 +223,7 @@
     return {frameId:'unknown', kind:'Layer', pass:canonicalPass(base)};
   }
 
-  const pad = (n, len) => String(n).padStart(len, '0');
+  const pad = (n,len)=> String(n).padStart(len,'0');
 
   // ==== Canvas ====
   function setCanvasSize(){
@@ -272,13 +264,13 @@
     ctx.setTransform(1,0,0,1,panX,panY);
     ctx.scale(zoom, zoom);
 
-    // Base first
+    // Base first if present
     if(fr.base){
       const B = fr.base; ctx.globalAlpha = 1;
       if(B.w!==baseW || B.h!==baseH) ctx.drawImage(B.img,0,0,B.w,B.h,0,0,baseW,baseH);
       else ctx.drawImage(B.img,0,0);
     }
-    // Then layers in current order (already user-reordered)
+    // Layers in current order
     for(const L of fr.layers){
       if(!L.visible || L.opacity<=0) continue;
       ctx.globalAlpha = Math.max(0, Math.min(1, L.opacity));
@@ -307,78 +299,88 @@
     infoWarn.className = anyMismatch ? 'btn warn' : 'btn muted';
   }
 
-  // ==== UI render (with drag-reorder) ====
+  // ==== UI render (drag-reorder on handle only) ====
   function renderLayersUI(){
     layersEl.innerHTML = '';
     if(!currentFrameId){ footer.textContent = 'No images'; return; }
     const fr = frames.get(currentFrameId); if(!fr) return;
 
-    // Base row (no checkbox, no slider)
-    const baseRow = document.createElement('div'); baseRow.className='layer base';
-    baseRow.innerHTML = `
-      <div class="handle"> </div>
-      <div class="cbwrap"> </div>
-      <div class="name">${fr.base ? 'High (Base)' : 'No High'}</div>
-      <span class="chip">${fr.base ? `${fr.base.w}×${fr.base.h}` : '—'}</span>
-      <div class="slider"></div>
-    `;
-    layersEl.appendChild(baseRow);
-
-    // Ensure initial order: Combined first (by index), then other passes by PASS_ORDER
+    // Sort default: Combined first, then by PASS_ORDER
     fr.layers.sort((a,b)=>{
       if(a.kind==='Combined' && b.kind!=='Combined') return -1;
       if(b.kind==='Combined' && a.kind!=='Combined') return 1;
-      if(a.kind==='Combined' && b.kind==='Combined') return a.combinedIndex - b.combinedIndex;
-      // both 'Layer'
+      if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
+      // both normal layers
       return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
     });
 
-    // Render each layer row
+    // If there's a base, show a non-interactive informational row
+    if(fr.base){
+      const baseRow = document.createElement('div'); baseRow.className='layer';
+      baseRow.style.opacity = .9;
+      baseRow.innerHTML = `
+        <div class="handle"> </div>
+        <div class="cbwrap"> </div>
+        <div class="name">High (Base)</div>
+        <span class="chip">${fr.base.w}×${fr.base.h}</span>
+        <div class="slider"></div>
+      `;
+      layersEl.appendChild(baseRow);
+    }
+
+    // Build draggable rows
     fr.layers.forEach((L, idx)=>{
       const row = document.createElement('div'); row.className='layer' + (L.visible ? '' : ' off');
-      row.draggable = true;
       row.dataset.index = idx;
 
-      // DRAG EVENTS
-      row.addEventListener('dragstart', e=>{
+      // Handle (only this is draggable)
+      const handle = document.createElement('div'); handle.className='handle'; handle.textContent = '⋮⋮';
+      handle.setAttribute('draggable','true');
+
+      handle.addEventListener('dragstart', e=>{
         row.classList.add('dragging');
         e.dataTransfer.setData('text/plain', String(idx));
         e.dataTransfer.effectAllowed = 'move';
       });
-      row.addEventListener('dragend', ()=> row.classList.remove('dragging'));
-      row.addEventListener('dragover', e=>{
-        e.preventDefault();
-        row.classList.add('drop-target');
-        e.dataTransfer.dropEffect='move';
-      });
+      handle.addEventListener('dragend', ()=> row.classList.remove('dragging'));
+
+      // The row is the drop target (not draggable)
+      row.addEventListener('dragover', e=>{ e.preventDefault(); row.classList.add('drop-target'); e.dataTransfer.dropEffect='move'; });
       row.addEventListener('dragleave', ()=> row.classList.remove('drop-target'));
       row.addEventListener('drop', e=>{
-        e.preventDefault();
-        row.classList.remove('drop-target');
+        e.preventDefault(); row.classList.remove('drop-target');
         const from = Number(e.dataTransfer.getData('text/plain'));
         const to = Number(row.dataset.index);
         if(isNaN(from) || isNaN(to) || from===to) return;
         const moved = fr.layers.splice(from,1)[0];
         fr.layers.splice(to,0,moved);
-        renderLayersUI(); // re-render to refresh indices
+        renderLayersUI();
         draw();
       });
 
-      // Build row content
-      const handle = document.createElement('div'); handle.className='handle'; handle.textContent = '⋮⋮';
-
+      // Checkbox
       const cbWrap = document.createElement('div'); cbWrap.className='cbwrap';
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
       cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
       cbWrap.appendChild(cb);
 
+      // Name
       const name = document.createElement('div'); name.className='name';
       name.textContent = (L.kind==='Combined') ? (L.displayName || 'Combined') : L.name;
+      name.title = name.textContent;
 
+      // Chip (dims)
       const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
 
+      // Slider
       const sliderWrap = document.createElement('div'); sliderWrap.className='slider';
       const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100; slider.value = Math.round((L.opacity??0)*100);
+      // Avoid drag starting from slider/inputs
+      [slider, cb].forEach(el=>{
+        el.addEventListener('mousedown', ev=> ev.stopPropagation());
+        el.addEventListener('touchstart', ev=> ev.stopPropagation(), {passive:true});
+        el.setAttribute('draggable','false');
+      });
       slider.addEventListener('input', ()=>{ L.opacity = slider.value/100; draw(); });
       sliderWrap.appendChild(slider);
 
@@ -386,7 +388,7 @@
       layersEl.appendChild(row);
     });
 
-    footer.textContent = fr.base ? 'Base: High + layers (drag to reorder)' : 'Missing High for this frame';
+    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder. Sliders fade layers.';
   }
 
   // ==== Frames / Timeline ====
@@ -421,8 +423,6 @@
   // ==== File handling ====
   async function handleFiles(files){
     const sorted = [...files].sort((a,b)=> a.name.localeCompare(b.name));
-    // tally for Combined indices per frame
-    const combinedCounts = new Map();
 
     for(const f of sorted){
       if(!f.type.startsWith('image/')) continue;
@@ -437,10 +437,11 @@
       if(kind==='High'){
         fr.base = { name:'High', kind:'High', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:1 };
       } else if(kind==='Combined'){
-        const count = (combinedCounts.get(frameId)||0) + 1;
-        combinedCounts.set(frameId, count);
-        const displayName = `Combined ${count}`;
-        fr.layers.push({ name:'Combined', displayName, kind:'Combined', combinedIndex: count, img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:0 });
+        // count existing combined to assign 01, 02, ...
+        const existingCombined = fr.layers.filter(x=>x.kind==='Combined').length;
+        const idx = existingCombined + 1;
+        const displayName = `Combined ${pad2(idx)}`;
+        fr.layers.push({ name:'Combined', displayName, kind:'Combined', combinedIndex: idx, img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:0 });
       } else {
         fr.layers.push({ name:pass, kind:'Layer', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:0 });
       }
