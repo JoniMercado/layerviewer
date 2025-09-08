@@ -3,13 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frame Viewer • Combined + Drag Reorder</title>
-  <meta name="description" content="Compare render passes per frame. Numeric-only files become Combined ##, supports Pass_Frame naming and manual layer reordering.">
+  <title>Frame Viewer • Persistent Opacity + Combined 01 On</title>
+  <meta name="description" content="Compare render passes per frame. Persistent layer opacities across frames; numeric-only files become Combined ##; manual layer reordering.">
   <style>
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
       --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
-      /* Slider column fully visible inside 400px panel */
       --sliderw: clamp(100px, 35%, 130px);
     }
     *{box-sizing:border-box}
@@ -25,7 +24,7 @@
       background:linear-gradient(180deg,#0f1317,#0b0d10); border-bottom:1px solid var(--line)
     }
     header h1{font-size:14px; margin:0; opacity:.95; letter-spacing:.2px}
-    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text); padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
+    .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:#fff; padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
     .btn:hover{border-color:#2b3646}
     .field{display:flex; align-items:center; gap:.4rem}
     .input{border:1px solid var(--line); background:#0f1317; color:#e5e7eb; border-radius:.5rem; padding:.4rem .55rem; font-size:12px; width:90px}
@@ -41,10 +40,8 @@
     .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; overflow-x:hidden; min-height:0}
     .right{position:relative; min-width:0}
 
-    /* Layer rows */
     .layer{
       display:grid;
-      /* handle | checkbox | name | chip | slider */
       grid-template-columns:20px 24px minmax(120px,1fr) max-content var(--sliderw);
       align-items:center; gap:.4rem;
       padding:.4rem; border-radius:.5rem; border:1px solid transparent; background:#0e1218;
@@ -71,7 +68,7 @@
     .toolbar .btn{backdrop-filter:blur(6px); background:rgba(18,22,28,.75)}
 
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
-    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted); background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
+    .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:#cbd5e1; background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
     .warn{color:#fcd34d}
 
     .naming{margin:.5rem; background:#0f1317; border:1px solid #1a2230; border-radius:.5rem; padding:.5rem; font-size:12px; line-height:1.4}
@@ -121,7 +118,7 @@
           <li>Numeric-only files (e.g. <code>1.png</code>, <code>025.jpg</code>) become <em>Combined 01, 02…</em> (listed first).</li>
           <li>Layer pattern (case-insensitive): <code>BaseColor_#</code>, <code>Depth_#</code>, <code>Metallic_#</code>, <code>Normal_#</code>, <code>Reflection_#</code>, <code>Roughness_#</code>.</li>
           <li><code>High</code> or <code>High_#</code> (if present) renders as base; if absent, layers still render fine.</li>
-          <li>Drag the <b>⋮⋮</b> handle to reorder layers (top renders first).</li>
+          <li>Drag the <b>⋮⋮</b> handle to reorder layers (order is preserved).</li>
         </ul>
       </div>
     </aside>
@@ -160,12 +157,15 @@
   const footer = document.getElementById('footer');
 
   // ==== State ====
-  // frames: "0001" -> { base: entry|null, layers: entry[] }
-  // entry: { name, kind, img, url, w, h, visible, opacity, combinedIndex? }
-  // kind ∈ {'High','Combined','Layer'}
+  // frames: id -> { base, layers[], userSorted:boolean }
+  // entry: { name, kind, displayName?, combinedIndex?, img, url, w, h, visible, opacity }
   let frames = new Map();
   let frameList = [];
   let currentFrameId = null;
+
+  // Global defaults for opacity (persist across frames) keyed by display name:
+  //  - 'BaseColor', 'Depth', ... or 'Combined 01', 'Combined 02', etc.
+  const opacityDefaults = new Map(); // value: 0..1
 
   // view
   let zoom = 1, panX = 0, panY = 0;
@@ -191,39 +191,51 @@
     };
     return map[s] || (s.charAt(0).toUpperCase()+s.slice(1));
   }
-
-  // Parse to {frameId, kind, pass}
   function parseName(name){
     const base = name.replace(/\.[^.]+$/,'');
-    // numeric-only -> Combined
     const mNum = base.match(/^(\d+)$/);
     if(mNum){ return {frameId:mNum[1], kind:'Combined', pass:'Combined'}; }
-
-    // Pass_Frame
     const mPF = base.match(/^([A-Za-z ]+)[-_ ](\d+)$/);
     if(mPF){
       const pass = canonicalPass(mPF[1]);
       if(isHighName(pass)) return {frameId:mPF[2], kind:'High', pass:'High'};
       return {frameId:mPF[2], kind:'Layer', pass};
     }
-    // Legacy Frame_Pass
     const mFP = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
     if(mFP){
       const pass = canonicalPass(mFP[2]);
       if(isHighName(pass)) return {frameId:mFP[1], kind:'High', pass:'High'};
       return {frameId:mFP[1], kind:'Layer', pass};
     }
-    // Just 'High'
     if(isHighName(base)) return {frameId:'unknown', kind:'High', pass:'High'};
-    // Fallback: trailing number as frame
     const mTail = base.match(/(\d+)$/);
     if(mTail){
       return {frameId:mTail[1], kind:'Layer', pass:canonicalPass(base.slice(0, mTail.index))};
     }
     return {frameId:'unknown', kind:'Layer', pass:canonicalPass(base)};
   }
-
   const pad = (n,len)=> String(n).padStart(len,'0');
+
+  function defaultSort(fr){
+    fr.layers.sort((a,b)=>{
+      if(a.kind==='Combined' && b.kind!=='Combined') return -1;
+      if(b.kind==='Combined' && a.kind!=='Combined') return 1;
+      if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
+      return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
+    });
+  }
+
+  // Apply global opacity defaults to a frame's layers
+  function applyOpacityDefaults(fr){
+    for(const L of fr.layers){
+      const key = (L.kind==='Combined') ? (L.displayName || `Combined ${pad2(L.combinedIndex||1)}`) : L.name;
+      if(opacityDefaults.has(key)){
+        L.opacity = opacityDefaults.get(key);
+        // Keep checkbox state; if opacity > 0, ensure visible to match user expectation
+        if(L.opacity > 0 && !L.visible) L.visible = true;
+      }
+    }
+  }
 
   // ==== Canvas ====
   function setCanvasSize(){
@@ -264,13 +276,11 @@
     ctx.setTransform(1,0,0,1,panX,panY);
     ctx.scale(zoom, zoom);
 
-    // Base first if present
     if(fr.base){
       const B = fr.base; ctx.globalAlpha = 1;
       if(B.w!==baseW || B.h!==baseH) ctx.drawImage(B.img,0,0,B.w,B.h,0,0,baseW,baseH);
       else ctx.drawImage(B.img,0,0);
     }
-    // Layers in current order
     for(const L of fr.layers){
       if(!L.visible || L.opacity<=0) continue;
       ctx.globalAlpha = Math.max(0, Math.min(1, L.opacity));
@@ -284,7 +294,6 @@
     infoDim.textContent = baseW && baseH ? `${baseW}×${baseH}` : '–';
     infoZoom.textContent = `${Math.round(zoom*100)}%`;
   }
-
   function checkDims(){
     if(!currentFrameId) return;
     const fr = frames.get(currentFrameId); if(!fr) return;
@@ -299,22 +308,13 @@
     infoWarn.className = anyMismatch ? 'btn warn' : 'btn muted';
   }
 
-  // ==== UI render (drag-reorder on handle only) ====
+  // ==== UI (preserves user order; sliders persist globally) ====
   function renderLayersUI(){
     layersEl.innerHTML = '';
     if(!currentFrameId){ footer.textContent = 'No images'; return; }
     const fr = frames.get(currentFrameId); if(!fr) return;
 
-    // Sort default: Combined first, then by PASS_ORDER
-    fr.layers.sort((a,b)=>{
-      if(a.kind==='Combined' && b.kind!=='Combined') return -1;
-      if(b.kind==='Combined' && a.kind!=='Combined') return 1;
-      if(a.kind==='Combined' && b.kind==='Combined') return (a.combinedIndex||0) - (b.combinedIndex||0);
-      // both normal layers
-      return PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name);
-    });
-
-    // If there's a base, show a non-interactive informational row
+    // Base info row (if exists)
     if(fr.base){
       const baseRow = document.createElement('div'); baseRow.className='layer';
       baseRow.style.opacity = .9;
@@ -328,12 +328,11 @@
       layersEl.appendChild(baseRow);
     }
 
-    // Build draggable rows
+    // Build rows in current fr.layers order
     fr.layers.forEach((L, idx)=>{
       const row = document.createElement('div'); row.className='layer' + (L.visible ? '' : ' off');
       row.dataset.index = idx;
 
-      // Handle (only this is draggable)
       const handle = document.createElement('div'); handle.className='handle'; handle.textContent = '⋮⋮';
       handle.setAttribute('draggable','true');
 
@@ -344,7 +343,7 @@
       });
       handle.addEventListener('dragend', ()=> row.classList.remove('dragging'));
 
-      // The row is the drop target (not draggable)
+      // Drop target = the row
       row.addEventListener('dragover', e=>{ e.preventDefault(); row.classList.add('drop-target'); e.dataTransfer.dropEffect='move'; });
       row.addEventListener('dragleave', ()=> row.classList.remove('drop-target'));
       row.addEventListener('drop', e=>{
@@ -354,41 +353,51 @@
         if(isNaN(from) || isNaN(to) || from===to) return;
         const moved = fr.layers.splice(from,1)[0];
         fr.layers.splice(to,0,moved);
+        fr.userSorted = true;
         renderLayersUI();
         draw();
       });
 
-      // Checkbox
       const cbWrap = document.createElement('div'); cbWrap.className='cbwrap';
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
       cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
       cbWrap.appendChild(cb);
 
-      // Name
       const name = document.createElement('div'); name.className='name';
-      name.textContent = (L.kind==='Combined') ? (L.displayName || 'Combined') : L.name;
+      name.textContent = (L.kind==='Combined') ? (L.displayName || `Combined ${pad2(L.combinedIndex||1)}`) : L.name;
       name.title = name.textContent;
 
-      // Chip (dims)
       const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
 
-      // Slider
       const sliderWrap = document.createElement('div'); sliderWrap.className='slider';
-      const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100; slider.value = Math.round((L.opacity??0)*100);
-      // Avoid drag starting from slider/inputs
+      const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100;
+      // Refresh slider from the layer's current opacity (already synced with defaults on frame change)
+      slider.value = Math.round((L.opacity??0)*100);
+
+      // Avoid drag from inputs
       [slider, cb].forEach(el=>{
         el.addEventListener('mousedown', ev=> ev.stopPropagation());
         el.addEventListener('touchstart', ev=> ev.stopPropagation(), {passive:true});
         el.setAttribute('draggable','false');
       });
-      slider.addEventListener('input', ()=>{ L.opacity = slider.value/100; draw(); });
+
+      // On change: set layer + global default
+      slider.addEventListener('input', ()=>{
+        const v = slider.value/100;
+        L.opacity = v;
+        if(v>0 && !L.visible){ L.visible = true; row.classList.remove('off'); cb.checked = true; }
+        const key = (L.kind==='Combined') ? (L.displayName || `Combined ${pad2(L.combinedIndex||1)}`) : L.name;
+        opacityDefaults.set(key, v);    // <-- persist globally
+        draw();
+      });
+
       sliderWrap.appendChild(slider);
 
       row.append(handle, cbWrap, name, chip, sliderWrap);
       layersEl.appendChild(row);
     });
 
-    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder. Sliders fade layers.';
+    footer.textContent = (fr.base ? 'Base present. ' : '') + 'Drag ⋮⋮ to reorder. Opacity persists across frames.';
   }
 
   // ==== Frames / Timeline ====
@@ -412,6 +421,11 @@
     if(!frames.has(fid)) return;
     currentFrameId = fid;
     frameInput.value = fid;
+
+    const fr = frames.get(fid);
+    if(fr && !fr.userSorted){ defaultSort(fr); }
+    applyOpacityDefaults(fr); // <-- sync global opacities to this frame
+
     updateFrameList();
     checkDims();
     zoom = fitZoom();
@@ -431,20 +445,35 @@
       await new Promise(res=>{ img.onload=res; img.src=url; });
       const {frameId, kind, pass} = parseName(f.name);
 
-      if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[]}); }
+      if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[], userSorted:false}); }
       const fr = frames.get(frameId);
 
       if(kind==='High'){
         fr.base = { name:'High', kind:'High', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:1 };
       } else if(kind==='Combined'){
-        // count existing combined to assign 01, 02, ...
         const existingCombined = fr.layers.filter(x=>x.kind==='Combined').length;
         const idx = existingCombined + 1;
         const displayName = `Combined ${pad2(idx)}`;
-        fr.layers.push({ name:'Combined', displayName, kind:'Combined', combinedIndex: idx, img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:0 });
+        // default opacity for Combined 01 is 1.0 (and persist globally if not set yet)
+        let op = 0;
+        if(idx===1){
+          op = opacityDefaults.has(displayName) ? opacityDefaults.get(displayName) : 1;
+          if(!opacityDefaults.has(displayName)) opacityDefaults.set(displayName, 1);
+        } else {
+          op = opacityDefaults.has(displayName) ? opacityDefaults.get(displayName) : 0;
+        }
+        fr.layers.push({ name:'Combined', displayName, kind:'Combined', combinedIndex: idx, img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
       } else {
-        fr.layers.push({ name:pass, kind:'Layer', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity:0 });
+        const defaultKey = pass;
+        const op = opacityDefaults.has(defaultKey) ? opacityDefaults.get(defaultKey) : 0;
+        fr.layers.push({ name:pass, kind:'Layer', img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: op });
       }
+    }
+
+    // Apply default sort to frames not yet sorted by user
+    for(const [fid, fr] of frames.entries()){
+      if(!fr.userSorted){ defaultSort(fr); }
+      applyOpacityDefaults(fr); // also sync new layers with existing defaults
     }
 
     updateFrameList();
