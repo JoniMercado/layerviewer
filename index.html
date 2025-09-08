@@ -1,66 +1,107 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Visor por Frame • High + Layers (checkbox + fade)</title>
-  <meta name="description" content="Selector de frames y comparación de pases con sliders de opacidad por capa. 'High' como base (sin slider), case-insensitive, drag&drop en panel y canvas.">
+  <title>Frame Viewer • High + Layers (checkbox + fade + timeline)</title>
+  <meta name="description" content="Compare render passes per frame. 'High' as base (no slider), case-insensitive, drag & drop on panel and canvas. Frame input + timeline slider.">
   <style>
-    :root{ --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1; --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b; }
-    *{box-sizing:border-box} html,body{height:100%}
+    :root{
+      --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
+      --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
-    header{display:flex; align-items:center; gap:.5rem; padding:.5rem .75rem; background:linear-gradient(180deg,#0f1317,#0b0d10); border-bottom:1px solid var(--line)}
-    header h1{font-size:14px; margin:0; letter-spacing:.2px; opacity:.95} .sp{flex:1}
+
+    header{
+      display:grid;
+      grid-template-columns:auto 1fr auto auto auto auto;
+      gap:.5rem; align-items:center;
+      padding:.5rem .75rem; background:linear-gradient(180deg,#0f1317,#0b0d10);
+      border-bottom:1px solid var(--line)
+    }
+    header h1{font-size:14px; margin:0; letter-spacing:.2px; opacity:.95}
     .btn{appearance:none; border:1px solid var(--line); background:#12161c; color:var(--text); padding:.45rem .7rem; border-radius:.55rem; font-size:12px; cursor:pointer}
-    .btn:hover{border-color:#2b3646} select.btn{padding:.35rem .5rem}
-    .main{display:grid; grid-template-columns:340px 1fr; height:calc(100vh - 50px)}
-    .left{border-right:1px solid var(--line); background:var(--panel); overflow:auto}
+    .btn:hover{border-color:#2b3646}
+    .field{display:flex; align-items:center; gap:.4rem}
+    .input{border:1px solid var(--line); background:#0f1317; color:var(--text); border-radius:.5rem; padding:.4rem .55rem; font-size:12px; width:90px}
+    .range-header{display:flex; align-items:center; gap:.5rem}
+    .range-header input[type=range]{width:280px}
+
+    .main{display:grid; grid-template-columns:360px 1fr; height:calc(100vh - 50px)}
+    .left{border-right:1px solid var(--line); background:var(--panel); overflow:auto; padding:.5rem}
     .right{position:relative}
-    .drop{margin:.75rem; padding:1rem; border:1px dashed #2a3340; border-radius:.75rem; text-align:center; background:#0b0f14}
-    .drop.drag{border-color:var(--accent)} .drop p{margin:.25rem 0}
-    .small{font-size:12px; color:var(--muted)}
-    .layers{padding:.5rem; display:flex; flex-direction:column; gap:.5rem}
-    .layer{display:grid; grid-template-columns:auto 1fr; align-items:center; gap:.5rem; padding:.55rem; border-radius:.6rem; border:1px solid transparent; background:#0e1218; transition:opacity .15s ease}
+
+    /* Layer list */
+    .layers{display:flex; flex-direction:column; gap:.5rem}
+    .layer{
+      display:grid;
+      grid-template-columns:22px auto max-content 1fr max-content;
+      align-items:center; gap:.5rem;
+      padding:.55rem; border-radius:.6rem;
+      border:1px solid transparent; background:#0e1218;
+      transition:opacity .15s ease
+    }
+    .layer.base{background:#0f151e; border-color:#203040}
     .layer.off{opacity:.45}
-    .meta{display:flex; flex-direction:column; gap:.35rem}
-    .title{font-size:12px; display:flex; align-items:center; gap:.5rem}
+    .name{font-size:12px}
     .chip{font-size:11px; color:#cbd5e1; background:#0a0f15; padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem}
-    .range{display:flex; align-items:center; gap:.5rem}
-    .range input[type=range]{flex:1}
-    .range .val{width:36px; text-align:right; font-size:12px; color:#c7cbd1}
+    .slider{display:flex; align-items:center; gap:.5rem}
+    .slider input[type=range]{width:100%}
+    .pct{width:40px; text-align:right; font-size:12px; color:#c7cbd1}
+
     .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
     .toolbar .btn{backdrop-filter:blur(6px); background:rgba(18,22,28,.75)}
+
     canvas{display:block; width:100%; height:100%; background:#0a0c0f}
     .hint{position:absolute; bottom:.5rem; left:.5rem; font-size:12px; color:#c7cbd1; opacity:.85; background:rgba(9,11,15,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
     .footer{position:absolute; top:.5rem; right:.5rem; font-size:12px; color:var(--muted); background:rgba(18,22,28,.7); padding:.35rem .5rem; border-radius:.4rem; border:1px solid #1a2230}
-    .warn{color:#fcd34d} code.k{background:#0f1720; border:1px solid #202b3a; padding:.05rem .3rem; border-radius:.35rem}
-    .row{display:flex; gap:.35rem; align-items:center}
+    .warn{color:#fcd34d}
+
     .row input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
-    @media (max-width:900px){ .main{grid-template-columns:1fr} .left{position:absolute; inset:auto 0 0 0; height:48%; border-right:none; border-top:1px solid var(--line)} .right{height:52vh} }
+
+    @media (max-width: 1000px){
+      header{grid-template-columns:auto 1fr auto; grid-auto-rows:auto}
+      .range-header{grid-column: 1 / -1}
+    }
+    @media (max-width: 900px){
+      .main{grid-template-columns: 1fr}
+      .left{position:absolute; inset:auto 0 0 0; height:48%; border-right:none; border-top:1px solid var(--line)}
+      .right{height:52vh}
+    }
   </style>
 </head>
 <body>
 <div class="app">
+
   <header>
-    <h1>Visor por Frame</h1>
-    <div class="sp"></div>
-    <label class="btn" for="frameSel">Frame</label>
-    <select id="frameSel" class="btn" style="min-width:110px"></select>
-    <button class="btn" id="btnFit">Ajustar</button>
+    <h1>Frame Viewer</h1>
+
+    <div class="range-header">
+      <label for="frameRange">Timeline</label>
+      <input id="frameRange" type="range" min="0" max="0" step="1" value="0">
+      <span id="rangeMin" class="muted">—</span>
+      <span id="rangeCur" class="muted">—</span>
+      <span id="rangeMax" class="muted">—</span>
+    </div>
+
+    <div class="field">
+      <label for="frameInput">Frame</label>
+      <input id="frameInput" class="input" placeholder="0001" />
+    </div>
+
+    <button class="btn" id="btnFit">Fit</button>
     <button class="btn" id="btn100">100%</button>
     <button class="btn" id="btnBG">BG</button>
-    <button class="btn" id="btnReset">Reset sliders</button>
-    <label class="btn" for="file">Subir imágenes</label>
+    <label class="btn" for="file">Upload</label>
     <input id="file" type="file" accept="image/*" multiple hidden>
   </header>
 
   <div class="main">
     <aside class="left">
-      <div id="drop" class="drop">
-        <p><strong>Soltá acá</strong> o usá el botón Subir imágenes.</p>
-        <p class="small">Formato: <code>0001_High</code>, <code>0001_BaseColor</code>, <code>0001_Normal</code>, <code>0001_Depth</code>, <code>0001_Metallic</code>, <code>0001_Reflection</code>, <code>0001_Roughness</code> (case-insensitive).</p>
-      </div>
       <div class="layers" id="layers"></div>
     </aside>
 
@@ -71,51 +112,52 @@
         <div class="btn muted" id="infoWarn"></div>
       </div>
       <canvas id="cv"></canvas>
-      <div class="hint">Drag & drop también sobre el canvas. Zoom con rueda, pan con arrastre. Teclas: <code class="k">F</code> fit, <code class="k">0</code> 100%.</div>
-      <div class="footer" id="footer">Sin imágenes</div>
+      <div class="hint">Drag & drop on canvas or left panel. Mouse wheel to zoom, drag to pan. Keys: <b>F</b> fit, <b>0</b> 100%.</div>
+      <div class="footer" id="footer">Drop images to start</div>
     </section>
   </div>
 </div>
 
 <script>
 (()=>{
-
   // ==== DOM ====
   const fileInput = document.getElementById('file');
-  const drop = document.getElementById('drop');
   const layersEl = document.getElementById('layers');
-  const frameSel = document.getElementById('frameSel');
+  const frameInput = document.getElementById('frameInput');
+  const frameRange = document.getElementById('frameRange');
+  const rangeMin = document.getElementById('rangeMin');
+  const rangeCur = document.getElementById('rangeCur');
+  const rangeMax = document.getElementById('rangeMax');
   const cv = document.getElementById('cv');
   const ctx = cv.getContext('2d');
   const btnFit = document.getElementById('btnFit');
   const btn100 = document.getElementById('btn100');
   const btnBG = document.getElementById('btnBG');
-  const btnReset = document.getElementById('btnReset');
   const infoDim = document.getElementById('infoDim');
   const infoZoom = document.getElementById('infoZoom');
   const infoWarn = document.getElementById('infoWarn');
   const footer = document.getElementById('footer');
 
-  // ==== Estado ====
+  // ==== State ====
   // frames: "0001" -> { base: entry|null, layers: entry[] }
   // entry: { name, img, url, w, h, visible, opacity }
   let frames = new Map();
-  let frameOrder = [];
+  let frameList = []; // sorted numeric strings
   let currentFrameId = null;
 
-  // vista
+  // view
   let zoom = 1, panX = 0, panY = 0;
   let bgToggle = 0;
   let baseW = 0, baseH = 0;
 
   const PASS_ORDER = ['BaseColor','Depth','Metallic','Normal','Reflection','Roughness'];
 
-  // ==== Helpers de nombre / mapeo de pases ====
+  // ==== Helpers ====
   function isHighName(n){ return String(n).replace(/\s+/g,'').toLowerCase()==='high'; }
   function canonicalPass(p){
     const s = String(p).replace(/\s+/g,'').toLowerCase();
     const map = {
-      high:'High', beauty:'High', // beauty mapea a High
+      high:'High', beauty:'High',
       basecolor:'BaseColor', base_color:'BaseColor', albedo:'BaseColor', diffuse:'BaseColor',
       depth:'Depth', z:'Depth',
       metallic:'Metallic', metalness:'Metallic',
@@ -126,12 +168,13 @@
     return map[s] || (s.charAt(0).toUpperCase()+s.slice(1));
   }
   function parseName(name){
-    // Espera "XXXX_Suffix.ext" (case-insensitive en el sufijo)
+    // "XXXX_Suffix.ext" (case-insensitive on suffix)
     const base = name.replace(/\.[^.]+$/,'');
     const m = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
     if(!m) return {frameId:'unknown', pass:canonicalPass(base)};
     return {frameId:m[1], pass:canonicalPass(m[2])};
   }
+  const pad = (n, len) => String(n).padStart(len, '0');
 
   // ==== Canvas ====
   function setCanvasSize(){
@@ -172,13 +215,13 @@
     ctx.setTransform(1,0,0,1,panX,panY);
     ctx.scale(zoom, zoom);
 
-    // 1) Base (High) SIEMPRE primero y al 100% — sin slider
+    // High (base) always first, 100%
     if(fr.base){
       const B = fr.base; ctx.globalAlpha = 1;
       if(B.w!==baseW || B.h!==baseH) ctx.drawImage(B.img,0,0,B.w,B.h,0,0,baseW,baseH);
       else ctx.drawImage(B.img,0,0);
     }
-    // 2) Capas por encima con fade
+    // Layers above with opacity
     for(const L of fr.layers){
       if(!L.visible || L.opacity<=0) continue;
       ctx.globalAlpha = Math.max(0, Math.min(1, L.opacity));
@@ -204,88 +247,80 @@
     baseW = fr.base ? fr.base.w : dims[0][0];
     baseH = fr.base ? fr.base.h : dims[0][1];
     const anyMismatch = dims.some(([w,h])=> w!==baseW || h!==baseH);
-    infoWarn.textContent = anyMismatch ? 'Dimensiones distintas. Se escala al tamaño base.' : '';
+    infoWarn.textContent = anyMismatch ? 'Different sizes. Scaling to base.' : '';
     infoWarn.className = anyMismatch ? 'btn warn' : 'btn muted';
   }
 
-  // ==== UI de capas (sin slider para High) ====
+  // ==== UI: layers (no slider for High) ====
   function renderLayersUI(){
     layersEl.innerHTML = '';
-    if(!currentFrameId){ footer.textContent = 'Sin imágenes'; return; }
+    if(!currentFrameId){ footer.textContent = 'No images'; return; }
     const fr = frames.get(currentFrameId); if(!fr) return;
 
-    // Cabecera mostrando la BASE
-    const baseRow = document.createElement('div');
-    baseRow.className = 'layer';
-    const baseLeft = document.createElement('div'); baseLeft.className='row';
-    // indicador (sin checkbox)
-    const lblBase = document.createElement('label');
-    lblBase.textContent = fr.base ? `${fr.base.name} (Base)` : 'Sin High';
-    baseLeft.appendChild(lblBase);
-    const baseMeta = document.createElement('div'); baseMeta.className='meta';
-    const t = document.createElement('div'); t.className='title';
-    const chip = document.createElement('span'); chip.className='chip';
-    chip.textContent = fr.base ? `${fr.base.w}×${fr.base.h}` : '—';
-    t.appendChild(chip);
-    baseMeta.appendChild(t);
-    baseRow.appendChild(baseLeft);
-    baseRow.appendChild(baseMeta);
+    // Base row (no checkbox, no slider)
+    const baseRow = document.createElement('div'); baseRow.className='layer base';
+    const empty = document.createElement('div'); // placeholder for checkbox column
+    const baseName = document.createElement('div'); baseName.className='name'; baseName.textContent = fr.base ? `${fr.base.name} (Base)` : 'No High';
+    const baseChip = document.createElement('span'); baseChip.className='chip'; baseChip.textContent = fr.base ? `${fr.base.w}×${fr.base.h}` : '—';
+    const spacer = document.createElement('div'); // slider column placeholder
+    const spacer2 = document.createElement('div'); // pct column placeholder
+    baseRow.append(empty, baseName, baseChip, spacer, spacer2);
     layersEl.appendChild(baseRow);
 
-    // Orden sugerido de capas
+    // Order layers
     fr.layers.sort((a,b)=> PASS_ORDER.indexOf(a.name) - PASS_ORDER.indexOf(b.name));
 
-    // Capas: checkbox + slider (0% por defecto)
+    // Layers with checkbox + slider (start at 0%)
     fr.layers.forEach(L=>{
       const row = document.createElement('div');
       row.className = 'layer' + (L.visible ? '' : ' off');
 
-      const left = document.createElement('div'); left.className='row';
+      const cbWrap = document.createElement('div'); cbWrap.className='row';
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
-      cb.addEventListener('change', ()=>{
-        L.visible = cb.checked;
-        row.classList.toggle('off', !L.visible);
-        draw();
-      });
-      const lbl = document.createElement('label'); lbl.textContent = L.name;
-      left.appendChild(cb); left.appendChild(lbl);
+      cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
+      cbWrap.appendChild(cb);
 
-      const meta = document.createElement('div'); meta.className='meta';
-      const title = document.createElement('div'); title.className='title';
-      const chip2 = document.createElement('span'); chip2.className='chip'; chip2.textContent = `${L.w}×${L.h}`;
-      title.appendChild(chip2);
+      const name = document.createElement('div'); name.className='name'; name.textContent = L.name;
 
-      const range = document.createElement('div'); range.className='range';
+      const chip = document.createElement('span'); chip.className='chip'; chip.textContent = `${L.w}×${L.h}`;
+
+      const sliderWrap = document.createElement('div'); sliderWrap.className='slider';
       const slider = document.createElement('input'); slider.type='range'; slider.min=0; slider.max=100; slider.value = Math.round((L.opacity??0)*100);
-      const val = document.createElement('div'); val.className='val'; val.textContent = `${slider.value}%`;
-      slider.addEventListener('input', ()=>{
-        L.opacity = slider.value/100;
-        val.textContent = `${slider.value}%`;
-        draw();
-      });
-      range.appendChild(slider); range.appendChild(val);
+      slider.addEventListener('input', ()=>{ L.opacity = slider.value/100; pct.textContent = `${slider.value}%`; draw(); });
+      sliderWrap.appendChild(slider);
 
-      meta.appendChild(title); meta.appendChild(range);
+      const pct = document.createElement('div'); pct.className='pct'; pct.textContent = `${slider.value}%`;
 
-      row.appendChild(left); row.appendChild(meta);
+      row.append(cbWrap, name, chip, sliderWrap, pct);
       layersEl.appendChild(row);
     });
 
-    footer.textContent = fr.base ? 'Base: High + capas con fade' : 'Falta High para este frame';
+    footer.textContent = fr.base ? 'Base: High + layers with fade' : 'Missing High for this frame';
   }
 
-  // ==== Frames ====
-  function populateFrameSelector(){
-    frameSel.innerHTML = '';
-    frameOrder = Array.from(new Set(frameOrder)).sort((a,b)=> Number(a)-Number(b));
-    for(const fid of frameOrder){
-      const opt = document.createElement('option'); opt.value = fid; opt.textContent = fid;
-      frameSel.appendChild(opt);
+  // ==== Frames / Timeline ====
+  function updateFrameList(){
+    frameList = Array.from(frames.keys()).sort((a,b)=> Number(a) - Number(b));
+    // Update timeline slider
+    if(frameList.length){
+      frameRange.min = 0;
+      frameRange.max = frameList.length - 1;
+      const idx = Math.max(0, frameList.indexOf(currentFrameId ?? frameList[0]));
+      frameRange.value = idx;
+      rangeMin.textContent = frameList[0];
+      rangeMax.textContent = frameList[frameList.length - 1];
+      rangeCur.textContent = frameList[idx];
+    } else {
+      frameRange.min = frameRange.max = frameRange.value = 0;
+      rangeMin.textContent = rangeMax.textContent = rangeCur.textContent = '—';
     }
   }
+
   function setCurrentFrame(fid){
+    if(!frames.has(fid)) return;
     currentFrameId = fid;
-    frameSel.value = fid;
+    frameInput.value = fid;
+    updateFrameList(); // refresh current indicator
     checkDims();
     zoom = fitZoom();
     center();
@@ -293,7 +328,7 @@
     draw();
   }
 
-  // ==== Carga de archivos ====
+  // ==== File handling ====
   async function handleFiles(files){
     const sorted = [...files].sort((a,b)=> a.name.localeCompare(b.name));
     for(const f of sorted){
@@ -303,33 +338,33 @@
       await new Promise(res=>{ img.onload=res; img.src=url; });
       const {frameId, pass} = parseName(f.name);
 
-      if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[]}); frameOrder.push(frameId); }
+      if(!frames.has(frameId)){ frames.set(frameId, {base:null, layers:[]}); }
       const entry = {name:pass, img, url, w:img.naturalWidth, h:img.naturalHeight, visible:true, opacity: isHighName(pass) ? 1 : 0};
 
       const fr = frames.get(frameId);
       if(isHighName(pass)) fr.base = entry; else fr.layers.push(entry);
     }
-    if(frameOrder.length>0){
-      populateFrameSelector();
-      if(!currentFrameId){
-        const first = frameOrder.sort((a,b)=>Number(a)-Number(b))[0];
-        setCurrentFrame(first);
-      }else{
-        setCurrentFrame(currentFrameId);
-      }
-      updateInfo();
+
+    updateFrameList();
+
+    if(!currentFrameId && frameList.length){
+      setCurrentFrame(frameList[0]);
+    }else if(currentFrameId){
+      setCurrentFrame(currentFrameId);
     }
+    updateInfo();
   }
 
+  // Upload input
   fileInput.addEventListener('change', e=> handleFiles(e.target.files));
 
-  // DnD panel y canvas
-  ['dragenter','dragover'].forEach(ev=> [drop,cv].forEach(el=> el.addEventListener(ev, e=>{e.preventDefault(); drop.classList.add('drag');})));
-  ['dragleave','drop'].forEach(ev=> [drop,cv].forEach(el=> el.addEventListener(ev, e=>{e.preventDefault(); drop.classList.remove('drag');})));
-  drop.addEventListener('drop', e=> handleFiles(e.dataTransfer.files));
+  // Drag & drop on left panel and canvas
+  ['dragenter','dragover'].forEach(ev=> [layersEl, cv].forEach(el => el.addEventListener(ev, e=>{e.preventDefault();})));
+  ['dragleave','drop'].forEach(ev=> [layersEl, cv].forEach(el => el.addEventListener(ev, e=>{e.preventDefault();})));
+  layersEl.addEventListener('drop', e=> handleFiles(e.dataTransfer.files));
   cv.addEventListener('drop', e=> handleFiles(e.dataTransfer.files));
 
-  // ==== Interacción canvas ====
+  // ==== Canvas interactions ====
   let dragging=false,lastX=0,lastY=0;
   cv.addEventListener('mousedown', e=>{dragging=true; lastX=e.clientX; lastY=e.clientY;});
   window.addEventListener('mouseup', ()=> dragging=false);
@@ -346,23 +381,40 @@
     panX = mx - wx*zoom; panY = my - wy*zoom; draw(); updateInfo();
   }, {passive:false});
 
-  // ==== Botones / teclas ====
+  // ==== Header controls ====
   btnFit.addEventListener('click', ()=>{ zoom=fitZoom(); center(); draw(); updateInfo(); });
   btn100.addEventListener('click', ()=>{ zoom=1; center(); draw(); updateInfo(); });
   btnBG.addEventListener('click', ()=>{ bgToggle=(bgToggle+1)%2; draw(); });
-  btnReset.addEventListener('click', ()=>{
-    if(!currentFrameId) return;
-    const fr = frames.get(currentFrameId);
-    fr.layers.forEach(L=> L.opacity=0);
-    renderLayersUI(); draw();
+
+  // Frame text input (press Enter to jump)
+  frameInput.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){
+      const val = frameInput.value.trim();
+      if(frames.has(val)) setCurrentFrame(val);
+      else {
+        // try nearest numeric match
+        const n = Number(val);
+        if(!isNaN(n) && frameList.length){
+          const width = frameList[0].length;
+          const candidate = pad(n, width);
+          if(frames.has(candidate)) setCurrentFrame(candidate);
+        }
+      }
+    }
   });
 
-  frameSel.addEventListener('change', ()=> setCurrentFrame(frameSel.value));
+  // Timeline slider
+  frameRange.addEventListener('input', ()=>{
+    if(!frameList.length) return;
+    const idx = Number(frameRange.value);
+    const fid = frameList[Math.max(0, Math.min(idx, frameList.length-1))];
+    rangeCur.textContent = fid;
+    setCurrentFrame(fid);
+  });
 
   // init
   const ro = new ResizeObserver(setCanvasSize); ro.observe(cv);
   setCanvasSize();
-
 })();
 </script>
 </body>
