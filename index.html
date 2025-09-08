@@ -9,9 +9,7 @@
     :root{
       --bg:#0b0d10; --panel:#111418; --text:#e5e7eb; --muted:#9aa5b1;
       --line:#1f2937; --accent:#60a5fa; --warn:#f59e0b;
-
-      /* Responsive slider column width:
-         min 120px, fluid ~55% of the layer row, max 220px */
+      /* Responsive slider column: min 120, fluid 55%, max 220 */
       --sliderw: clamp(120px, 55%, 220px);
     }
     *{box-sizing:border-box}
@@ -22,7 +20,6 @@
     }
 
     .muted{color:var(--muted)}
-
     .app{display:grid; grid-template-rows:auto 1fr; height:100%}
 
     header{
@@ -64,7 +61,7 @@
     /* Layer list */
     .layer{
       display:grid;
-      grid-template-columns:22px auto max-content var(--sliderw) max-content; /* responsive slider column */
+      grid-template-columns:24px 1fr max-content var(--sliderw) max-content; /* checkbox | name | chip | slider | % */
       align-items:center; gap:.5rem;
       padding:.55rem; border-radius:.6rem;
       border:1px solid transparent; background:#0e1218;
@@ -72,7 +69,11 @@
     }
     .layer.base{background:#0f151e; border-color:#203040}
     .layer.off{opacity:.45}
-    .name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+    .cbwrap{display:flex; align-items:center; justify-content:center}
+    .cbwrap input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
+
+    .name{font-size:12px; color:var(--text); min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
     .chip{
       font-size:11px; color:#cbd5e1; background:#0a0f15;
       padding:.05rem .35rem; border:1px solid #243244; border-radius:.35rem; white-space:nowrap
@@ -80,7 +81,6 @@
     .slider{display:flex; align-items:center; gap:.5rem; min-width:0}
     .slider input[type=range]{width:100%} /* fills responsive column */
     .pct{width:40px; text-align:right; font-size:12px; color:#c7cbd1; white-space:nowrap}
-    .row input[type=checkbox]{width:18px; height:18px; accent-color: var(--accent); cursor:pointer}
 
     .toolbar{position:absolute; top:.5rem; left:.5rem; display:flex; gap:.4rem; z-index:10}
     .toolbar .btn{backdrop-filter:blur(6px); background:rgba(18,22,28,.75)}
@@ -107,7 +107,6 @@
       .main{grid-template-columns: 1fr}
       .left{position:absolute; inset:auto 0 0 0; height:48%}
       .right{height:52vh}
-      /* make slider column more compact on very small screens */
       :root{ --sliderw: clamp(110px, 52%, 190px); }
     }
   </style>
@@ -220,9 +219,9 @@
   function parseName(name){
     // "XXXX_Suffix.ext"
     const base = name.replace(/\.[^.]+$/,'');
-    const m = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
-    if(!m) return {frameId:'unknown', pass:canonicalPass(base)};
-    return {frameId:m[1], pass:canonicalPass(m[2])};
+    theMatch = base.match(/^(\d+)[-_ ]([A-Za-z_ ]+)$/);
+    if(!theMatch) return {frameId:'unknown', pass:canonicalPass(base)};
+    return {frameId:theMatch[1], pass:canonicalPass(theMatch[2])};
   }
   const pad = (n, len) => String(n).padStart(len, '0');
 
@@ -309,12 +308,12 @@
 
     // Base row (no checkbox, no slider)
     const baseRow = document.createElement('div'); baseRow.className='layer base';
-    const empty = document.createElement('div'); // checkbox col placeholder
+    const cbEmpty = document.createElement('div'); cbEmpty.className='cbwrap'; // placeholder
     const baseName = document.createElement('div'); baseName.className='name'; baseName.textContent = fr.base ? `${fr.base.name} (Base)` : 'No High';
     const baseChip = document.createElement('span'); baseChip.className='chip'; baseChip.textContent = fr.base ? `${fr.base.w}×${fr.base.h}` : '—';
     const spacer = document.createElement('div'); // slider placeholder
     const spacer2 = document.createElement('div'); // pct placeholder
-    baseRow.append(empty, baseName, baseChip, spacer, spacer2);
+    baseRow.append(cbEmpty, baseName, baseChip, spacer, spacer2);
     layersEl.appendChild(baseRow);
 
     // Order layers
@@ -325,7 +324,7 @@
       const row = document.createElement('div');
       row.className = 'layer' + (L.visible ? '' : ' off');
 
-      const cbWrap = document.createElement('div');
+      const cbWrap = document.createElement('div'); cbWrap.className='cbwrap';
       const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!L.visible;
       cb.addEventListener('change', ()=>{ L.visible = cb.checked; row.classList.toggle('off', !L.visible); draw(); });
       cbWrap.appendChild(cb);
